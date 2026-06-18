@@ -19,10 +19,12 @@ def _init_firebase():
     except json.JSONDecodeError as e:
         raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON: {e}")
     cred = credentials.Certificate(cred_dict)
+    firebase_project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
     firebase_admin.initialize_app(cred, {
-        "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "agrivet-backend.appspot.com")
+        "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", f"{firebase_project}.appspot.com"),
+        "projectId": firebase_project,
     })
-    print(f"[Firebase] Initialized: project={cred_dict.get('project_id')} bucket={os.environ.get('FIREBASE_STORAGE_BUCKET')}")
+    print(f"[Firebase] Initialized: project={firebase_project} sa_project={cred_dict.get('project_id')}")
 
 
 def get_db():
