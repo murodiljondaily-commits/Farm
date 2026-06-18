@@ -32,6 +32,87 @@ async def health():
     return {"status": "ok", "version": "1.0"}
 
 
+# ─── Diagnostics (temporary) ──────────────────────────────────────
+
+@app.get("/debug-firebase")
+async def debug_firebase():
+    import json, traceback, os
+    import firebase_admin
+    from firebase_admin import credentials, firestore as fs
+    from concurrent.futures import ThreadPoolExecutor
+
+    result = {}
+
+    # 1. Inspect the raw JSON key
+    raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    result["env_var_length"] = len(raw)
+    if raw:
+        try:
+            cred_dict = json.loads(raw)
+            pk = cred_dict.get("private_key", "")
+            result["private_key_length"] = len(pk)
+            result["private_key_first20"] = pk[:20].replace("\n", "\\n")
+            result["private_key_last20"] = pk[-20:].replace("\n", "\\n")
+            result["private_key_newline_count"] = pk.count("\n")
+            result["has_begin_header"] = "-----BEGIN RSA PRIVATE KEY-----" in pk or "-----BEGIN PRIVATE KEY-----" in pk
+            result["sa_email"] = cred_dict.get("client_email", "MISSING")
+            result["sa_project_id"] = cred_dict.get("project_id", "MISSING")
+            result["token_uri"] = cred_dict.get("token_uri", "MISSING")
+        except Exception as e:
+            result["json_parse_error"] = str(e)
+    else:
+        result["error"] = "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
+        return result
+
+    result["FIREBASE_PROJECT_ID_env"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
+
+    # 2. Check what firebase_admin is actually initialized with
+    if firebase_admin._apps:
+        app_obj = firebase_admin.get_app()
+        result["firebase_app_name"] = app_obj.name
+        result["firebase_app_project_id"] = app_obj.project_id
+        try:
+            c = app_obj.credential
+            result["credential_type"] = type(c).__name__
+            # For Certificate credentials the service_account_email is exposed
+            result["credential_email"] = getattr(c, "_service_account_email", "n/a")
+        except Exception as e:
+            result["credential_inspect_error"] = str(e)
+    else:
+        result["firebase_initialized"] = False
+
+    # 3. Raw Firestore write test with full traceback
+    def _raw_write():
+        db = firestore_db.get_db()
+        db.collection("_diag").document("ping").set({"ts": "ok"})
+
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(_raw_write)
+    try:
+        future.result(timeout=15)
+        result["firestore_write"] = "SUCCESS"
+    except Exception as e:
+        result["firestore_write"] = "FAILED"
+        result["firestore_error_type"] = type(e).__name__
+        result["firestore_full_traceback"] = traceback.format_exc()
+
+    # 4. Raw Firestore read test
+    def _raw_read():
+        db = firestore_db.get_db()
+        return db.collection("_diag").document("ping").get().to_dict()
+
+    future2 = executor.submit(_raw_read)
+    try:
+        data = future2.result(timeout=15)
+        result["firestore_read"] = data
+    except Exception as e:
+        result["firestore_read"] = "FAILED"
+        result["firestore_read_traceback"] = traceback.format_exc()
+
+    executor.shutdown(wait=False)
+    return result
+
+
 # ─── Chat ─────────────────────────────────────────────────────────
 
 @app.post("/chat", response_model=ChatResponse)
