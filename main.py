@@ -120,18 +120,95 @@ async def debug_firebase():
     except Exception:
         result["step2_init"] = {"timeout_or_crash": traceback.format_exc()}
 
-    # ── Step 3: Raw Firestore write with full traceback ───────────────
+    # ── Step 3: Basic HTTPS connectivity (does Railway reach Google?) ──
+    def _test_https():
+        import urllib.request
+        results = {}
+        for label, url in [
+            ("google_com", "https://www.google.com"),
+            ("oauth2_googleapis", "https://oauth2.googleapis.com/"),
+            ("firestore_googleapis", "https://firestore.googleapis.com/"),
+        ]:
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "diag/1"})
+                with urllib.request.urlopen(req, timeout=8) as r:
+                    results[label] = f"HTTP {r.status}"
+            except Exception as e:
+                results[label] = f"FAILED: {type(e).__name__}: {e}"
+        return results
+
+    f_https = executor.submit(_test_https)
+    try:
+        result["step3_https_connectivity"] = f_https.result(timeout=30)
+    except Exception:
+        result["step3_https_connectivity"] = traceback.format_exc()
+
+    # ── Step 4: OAuth token via REST (no gRPC) ────────────────────────
+    def _get_token():
+        from google.oauth2 import service_account
+        import google.auth.transport.requests as ga_requests
+        creds = service_account.Credentials.from_service_account_info(
+            cred_dict,
+            scopes=["https://www.googleapis.com/auth/cloud-platform",
+                    "https://www.googleapis.com/auth/datastore"],
+        )
+        request = ga_requests.Request()
+        creds.refresh(request)
+        return {"token_obtained": True, "expiry": str(creds.expiry)}
+
+    f_token = executor.submit(_get_token)
+    try:
+        result["step4_oauth_token"] = f_token.result(timeout=15)
+    except Exception:
+        result["step4_oauth_token"] = {"failed": True, "traceback": traceback.format_exc()}
+
+    # ── Step 5: Firestore via REST (bypasses gRPC entirely) ───────────
+    def _firestore_rest():
+        import urllib.request, urllib.error
+        from google.oauth2 import service_account
+        import google.auth.transport.requests as ga_requests
+
+        creds = service_account.Credentials.from_service_account_info(
+            cred_dict,
+            scopes=["https://www.googleapis.com/auth/cloud-platform",
+                    "https://www.googleapis.com/auth/datastore"],
+        )
+        creds.refresh(ga_requests.Request())
+        token = creds.token
+        project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
+        # List documents in _diag collection via REST
+        url = (
+            f"https://firestore.googleapis.com/v1/"
+            f"projects/{project}/databases/(default)/documents/_diag"
+        )
+        req = urllib.request.Request(
+            url,
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return {"status": r.status, "body_snippet": r.read(200).decode()}
+        except urllib.error.HTTPError as e:
+            return {"http_error": e.code, "body": e.read(500).decode()}
+
+    f_rest = executor.submit(_firestore_rest)
+    try:
+        result["step5_firestore_rest"] = f_rest.result(timeout=20)
+    except Exception:
+        result["step5_firestore_rest"] = {"failed": True, "traceback": traceback.format_exc()}
+
+    # ── Step 6: gRPC Firestore write (original path) ──────────────────
     def _raw_write():
         db = firestore_db.get_db()
         db.collection("_diag").document("ping").set({"ts": "ok"})
 
     f_write = executor.submit(_raw_write)
     try:
-        f_write.result(timeout=20)
-        result["step3_firestore_write"] = "SUCCESS"
+        f_write.result(timeout=15)
+        result["step6_grpc_write"] = "SUCCESS"
     except Exception:
-        result["step3_firestore_write"] = "FAILED"
-        result["step3_full_traceback"] = traceback.format_exc()
+        result["step6_grpc_write"] = "FAILED"
+        result["step6_full_traceback"] = traceback.format_exc()
 
     executor.shutdown(wait=False)
     return result
