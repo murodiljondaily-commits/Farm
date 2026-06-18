@@ -29,12 +29,19 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
+    result: dict = {"status": "ok", "version": "1.0"}
     try:
         import firestore_db
         firestore_db._init_firebase()
-        return {"status": "ok", "version": "1.0"}
+        result["firebase_init"] = "ok"
+        # Test actual Firestore read
+        db = firestore_db.get_db()
+        db.collection("_health").document("ping").get()
+        result["firestore"] = "ok"
     except Exception as exc:
-        return {"status": "error", "detail": str(exc)}
+        result["status"] = "degraded"
+        result["firestore_error"] = str(exc)
+    return result
 
 
 # ─── Chat ─────────────────────────────────────────────────────────
