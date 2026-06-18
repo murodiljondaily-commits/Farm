@@ -11,22 +11,29 @@ from firebase_admin import credentials, firestore, storage as fb_storage
 def _init_firebase():
     if firebase_admin._apps:
         return
-    cred_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "{}")
-    cred_dict = json.loads(cred_json)
+    cred_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not cred_json:
+        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON env var is not set")
+    try:
+        cred_dict = json.loads(cred_json)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON: {e}")
     cred = credentials.Certificate(cred_dict)
     firebase_admin.initialize_app(cred, {
-        "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "agrivet-498110.appspot.com")
+        "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "agrivet-backend.appspot.com")
     })
+    print(f"[Firebase] Initialized: project={cred_dict.get('project_id')} bucket={os.environ.get('FIREBASE_STORAGE_BUCKET')}")
 
 
-_init_firebase()
-db = firestore.client()
+def get_db():
+    _init_firebase()
+    return firestore.client()
 
 
 # ─── Farm ────────────────────────────────────────────────────────
 
 async def get_farm(farm_id: str) -> Optional[Dict]:
-    doc = db.collection("farms").document(farm_id).get()
+    doc = get_db().collection("farms").document(farm_id).get()
     return doc.to_dict() if doc.exists else None
 
 
@@ -37,7 +44,7 @@ async def get_all_animals(
     species: Optional[str] = None,
     status: Optional[str] = None,
 ) -> List[Dict]:
-    ref = db.collection("farms").document(farm_id).collection("animals")
+    ref = get_db().collection("farms").document(farm_id).collection("animals")
     query = ref
     if species:
         query = query.where("species", "==", species)
@@ -52,7 +59,7 @@ async def get_all_animals(
 
 
 async def get_animal(farm_id: str, ear_tag: str) -> Optional[Dict]:
-    doc = db.collection("farms").document(farm_id).collection("animals").document(ear_tag).get()
+    doc = get_db().collection("farms").document(farm_id).collection("animals").document(ear_tag).get()
     if doc.exists:
         a = doc.to_dict()
         a["ear_tag"] = doc.id
@@ -73,7 +80,7 @@ async def get_animal(farm_id: str, ear_tag: str) -> Optional[Dict]:
 
 async def update_animal(farm_id: str, ear_tag: str, data: Dict) -> None:
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    db.collection("farms").document(farm_id).collection("animals").document(ear_tag).set(
+    get_db().collection("farms").document(farm_id).collection("animals").document(ear_tag).set(
         data, merge=True
     )
 
@@ -85,12 +92,12 @@ async def create_case(farm_id: str, case_data: Dict) -> str:
     case_data["case_id"] = case_id
     case_data["opened_at"] = datetime.now(timezone.utc).isoformat()
     case_data["closed_at"] = None
-    db.collection("farms").document(farm_id).collection("cases").document(case_id).set(case_data)
+    get_db().collection("farms").document(farm_id).collection("cases").document(case_id).set(case_data)
     return case_id
 
 
 async def get_case(farm_id: str, case_id: str) -> Optional[Dict]:
-    doc = db.collection("farms").document(farm_id).collection("cases").document(case_id).get()
+    doc = get_db().collection("farms").document(farm_id).collection("cases").document(case_id).get()
     if doc.exists:
         c = doc.to_dict()
         c["case_id"] = doc.id
@@ -99,14 +106,14 @@ async def get_case(farm_id: str, case_id: str) -> Optional[Dict]:
 
 
 async def update_case(farm_id: str, case_id: str, data: Dict) -> None:
-    db.collection("farms").document(farm_id).collection("cases").document(case_id).set(
+    get_db().collection("farms").document(farm_id).collection("cases").document(case_id).set(
         data, merge=True
     )
 
 
 async def get_active_cases(farm_id: str) -> List[Dict]:
     docs = (
-        db.collection("farms")
+        get_db().collection("farms")
         .document(farm_id)
         .collection("cases")
         .where("closed_at", "==", None)
@@ -126,14 +133,14 @@ async def create_event(farm_id: str, event_data: Dict) -> str:
     event_id = uuid.uuid4().hex[:8]
     event_data["event_id"] = event_id
     event_data["timestamp"] = datetime.now(timezone.utc).isoformat()
-    db.collection("farms").document(farm_id).collection("events").document(event_id).set(event_data)
+    get_db().collection("farms").document(farm_id).collection("events").document(event_id).set(event_data)
     return event_id
 
 
 async def get_recent_events(farm_id: str, days: int = 7) -> List[Dict]:
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     docs = (
-        db.collection("farms")
+        get_db().collection("farms")
         .document(farm_id)
         .collection("events")
         .where("timestamp", ">=", cutoff)
@@ -153,7 +160,7 @@ async def get_recent_events(farm_id: str, days: int = 7) -> List[Dict]:
 
 async def get_conversation_history(farm_id: str, conv_id: str, limit: int = 10) -> List[Dict]:
     doc = (
-        db.collection("farms")
+        get_db().collection("farms")
         .document(farm_id)
         .collection("conversations")
         .document(conv_id)
@@ -178,7 +185,7 @@ async def save_conversation_turn(
         {"role": "assistant", "content": ai_msg, "timestamp": now, "tools_called": tools_called},
     ]
     ref = (
-        db.collection("farms")
+        get_db().collection("farms")
         .document(farm_id)
         .collection("conversations")
         .document(conv_id)
@@ -196,7 +203,7 @@ async def save_conversation_turn(
 
 async def get_animal_history(farm_id: str, ear_tag: str) -> Dict:
     cases_docs = (
-        db.collection("farms")
+        get_db().collection("farms")
         .document(farm_id)
         .collection("cases")
         .where("ear_tag", "==", ear_tag)
@@ -205,7 +212,7 @@ async def get_animal_history(farm_id: str, ear_tag: str) -> Dict:
     cases = [dict(d.to_dict(), case_id=d.id) for d in cases_docs]
 
     events_docs = (
-        db.collection("farms")
+        get_db().collection("farms")
         .document(farm_id)
         .collection("events")
         .where("ear_tag", "==", ear_tag)
@@ -230,13 +237,13 @@ async def save_rag_pattern(pattern: Dict) -> None:
     pattern_id = uuid.uuid4().hex[:8]
     now = datetime.now(timezone.utc).isoformat()
     pattern.update({"created_at": now, "updated_at": now, "case_count": 1})
-    db.collection("rag_knowledge").document(pattern_id).set(pattern)
+    get_db().collection("rag_knowledge").document(pattern_id).set(pattern)
 
 
 async def search_rag(
     species: str, symptoms_list: List[str], body_part: Optional[str] = None
 ) -> List[Dict]:
-    docs = db.collection("rag_knowledge").where("species", "==", species).limit(200).stream()
+    docs = get_db().collection("rag_knowledge").where("species", "==", species).limit(200).stream()
     results = []
     q_symptoms = set(s.lower() for s in symptoms_list)
     for doc in docs:
