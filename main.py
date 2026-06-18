@@ -47,6 +47,9 @@ async def debug_firebase():
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     result["step1_env_var_length"] = len(raw)
     result["step1_FIREBASE_PROJECT_ID"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
+    ant_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    result["step1_ANTHROPIC_API_KEY_set"] = bool(ant_key)
+    result["step1_ANTHROPIC_API_KEY_prefix"] = ant_key[:12] if ant_key else "NOT SET"
 
     if not raw:
         result["step1_error"] = "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
