@@ -38,76 +38,100 @@ async def health():
 async def debug_firebase():
     import json, traceback, os
     import firebase_admin
-    from firebase_admin import credentials, firestore as fs
+    from firebase_admin import credentials as fb_creds
     from concurrent.futures import ThreadPoolExecutor
 
     result = {}
 
-    # 1. Inspect the raw JSON key
+    # ── Step 1: Inspect raw JSON before touching firebase_admin ──────
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
-    result["env_var_length"] = len(raw)
-    if raw:
-        try:
-            cred_dict = json.loads(raw)
-            pk = cred_dict.get("private_key", "")
-            result["private_key_length"] = len(pk)
-            result["private_key_first20"] = pk[:20].replace("\n", "\\n")
-            result["private_key_last20"] = pk[-20:].replace("\n", "\\n")
-            result["private_key_newline_count"] = pk.count("\n")
-            result["has_begin_header"] = "-----BEGIN RSA PRIVATE KEY-----" in pk or "-----BEGIN PRIVATE KEY-----" in pk
-            result["sa_email"] = cred_dict.get("client_email", "MISSING")
-            result["sa_project_id"] = cred_dict.get("project_id", "MISSING")
-            result["token_uri"] = cred_dict.get("token_uri", "MISSING")
-        except Exception as e:
-            result["json_parse_error"] = str(e)
-    else:
-        result["error"] = "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
+    result["step1_env_var_length"] = len(raw)
+    result["step1_FIREBASE_PROJECT_ID"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
+
+    if not raw:
+        result["step1_error"] = "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
         return result
 
-    result["FIREBASE_PROJECT_ID_env"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
+    try:
+        cred_dict = json.loads(raw)
+        pk = cred_dict.get("private_key", "")
+        result["step1_json_parse"] = "OK"
+        result["step1_sa_email"] = cred_dict.get("client_email", "MISSING")
+        result["step1_sa_project_id"] = cred_dict.get("project_id", "MISSING")
+        result["step1_token_uri"] = cred_dict.get("token_uri", "MISSING")
+        result["step1_key_type"] = cred_dict.get("type", "MISSING")
+        result["step1_private_key_length"] = len(pk)
+        result["step1_private_key_newline_count"] = pk.count("\n")
+        result["step1_private_key_first30"] = repr(pk[:30])
+        result["step1_private_key_last30"] = repr(pk[-30:])
+        result["step1_has_begin_header"] = (
+            "-----BEGIN RSA PRIVATE KEY-----" in pk
+            or "-----BEGIN PRIVATE KEY-----" in pk
+        )
+        result["step1_has_end_footer"] = (
+            "-----END RSA PRIVATE KEY-----" in pk
+            or "-----END PRIVATE KEY-----" in pk
+        )
+    except json.JSONDecodeError as e:
+        result["step1_json_parse"] = f"FAILED: {e}"
+        return result
 
-    # 2. Check what firebase_admin is actually initialized with
-    if firebase_admin._apps:
-        app_obj = firebase_admin.get_app()
-        result["firebase_app_name"] = app_obj.name
-        result["firebase_app_project_id"] = app_obj.project_id
+    # ── Step 2: Force initialize (or re-use existing app) ─────────────
+    def _do_init():
+        # If already initialized, report what's in there
+        if firebase_admin._apps:
+            app = firebase_admin.get_app()
+            return {
+                "already_initialized": True,
+                "app_project_id": app.project_id,
+                "credential_type": type(app.credential).__name__,
+                "credential_email": getattr(app.credential, "_service_account_email", "n/a"),
+            }
+        # Fresh init — build the Certificate object explicitly so we can catch errors
         try:
-            c = app_obj.credential
-            result["credential_type"] = type(c).__name__
-            # For Certificate credentials the service_account_email is exposed
-            result["credential_email"] = getattr(c, "_service_account_email", "n/a")
-        except Exception as e:
-            result["credential_inspect_error"] = str(e)
-    else:
-        result["firebase_initialized"] = False
+            cred = fb_creds.Certificate(cred_dict)
+            init_info = {
+                "certificate_built": True,
+                "cert_email": getattr(cred, "_service_account_email", "n/a"),
+            }
+        except Exception:
+            return {"certificate_build": "FAILED", "traceback": traceback.format_exc()}
 
-    # 3. Raw Firestore write test with full traceback
+        firebase_project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
+        try:
+            firebase_admin.initialize_app(cred, {
+                "storageBucket": os.environ.get(
+                    "FIREBASE_STORAGE_BUCKET", f"{firebase_project}.appspot.com"
+                ),
+                "projectId": firebase_project,
+            })
+            init_info["initialize_app"] = "OK"
+            init_info["project_used"] = firebase_project
+        except Exception:
+            init_info["initialize_app"] = "FAILED"
+            init_info["traceback"] = traceback.format_exc()
+
+        return init_info
+
+    executor = ThreadPoolExecutor(max_workers=2)
+    f_init = executor.submit(_do_init)
+    try:
+        result["step2_init"] = f_init.result(timeout=10)
+    except Exception:
+        result["step2_init"] = {"timeout_or_crash": traceback.format_exc()}
+
+    # ── Step 3: Raw Firestore write with full traceback ───────────────
     def _raw_write():
         db = firestore_db.get_db()
         db.collection("_diag").document("ping").set({"ts": "ok"})
 
-    executor = ThreadPoolExecutor(max_workers=1)
-    future = executor.submit(_raw_write)
+    f_write = executor.submit(_raw_write)
     try:
-        future.result(timeout=15)
-        result["firestore_write"] = "SUCCESS"
-    except Exception as e:
-        result["firestore_write"] = "FAILED"
-        result["firestore_error_type"] = type(e).__name__
-        result["firestore_full_traceback"] = traceback.format_exc()
-
-    # 4. Raw Firestore read test
-    def _raw_read():
-        db = firestore_db.get_db()
-        return db.collection("_diag").document("ping").get().to_dict()
-
-    future2 = executor.submit(_raw_read)
-    try:
-        data = future2.result(timeout=15)
-        result["firestore_read"] = data
-    except Exception as e:
-        result["firestore_read"] = "FAILED"
-        result["firestore_read_traceback"] = traceback.format_exc()
+        f_write.result(timeout=20)
+        result["step3_firestore_write"] = "SUCCESS"
+    except Exception:
+        result["step3_firestore_write"] = "FAILED"
+        result["step3_full_traceback"] = traceback.format_exc()
 
     executor.shutdown(wait=False)
     return result
