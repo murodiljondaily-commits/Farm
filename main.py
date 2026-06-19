@@ -244,6 +244,27 @@ async def debug_firebase():
     except Exception:
         result["step7_httpx_async"] = traceback.format_exc()
 
+    # ── Step 8: Actual Anthropic API call using agent.py's client ────
+    from agent import client as anthropic_client
+    result["step8_client_type"] = type(anthropic_client).__name__
+    try:
+        hc = anthropic_client._client  # the underlying httpx.AsyncClient
+        result["step8_http2_enabled"] = getattr(hc, "_transport", None) is not None
+        result["step8_client_repr"] = repr(hc)[:200]
+    except Exception as e:
+        result["step8_client_inspect"] = str(e)
+
+    try:
+        ping = await anthropic_client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "hi"}],
+        )
+        result["step8_anthropic_ping"] = ping.content[0].text if ping.content else "ok"
+    except Exception:
+        result["step8_anthropic_ping"] = "FAILED"
+        result["step8_anthropic_traceback"] = traceback.format_exc()
+
     executor.shutdown(wait=False)
     return result
 
