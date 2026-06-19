@@ -26,3 +26,7 @@ class SyncRequest(BaseModel):
 
 class CreateSheetRequest(BaseModel):
     owner_email: str
+
+
+class SyncAnimalsRequest(BaseModel):
+    animals: List[Dict[str, Any]]

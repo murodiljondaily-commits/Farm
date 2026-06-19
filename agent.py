@@ -253,6 +253,13 @@ Sizning vazifangiz:
 7. Ishonch darajangizni DOIM ko'rsating (X%)
 8. Favqulodda holatlarda: DARHOL harakatlaning, keyin tushuntiring
 
+JAVOB FORMATI (MUHIM):
+- Javoblar qisqa va aniq bo'lsin — 3-5 jumladan oshmasin
+- Markdown jadval (|---|) va sarlavha (##, ###) ISHLATMANG
+- Ko'p bo'sh qator qoldirmang
+- Faqat oddiy matn va kerak bo'lsa raqamlangan ro'yxat (1. 2. 3.) ishlating
+- Mobil chatda o'qish oson bo'lishi kerak
+
 FARM KONTEKSTI:
 {farm_context}
 
@@ -318,6 +325,7 @@ async def run_agent(
     if not conversation_id:
         conversation_id = uuid.uuid4().hex[:12]
 
+    print(f"[Agent] run_agent farm_id={repr(farm_id)} msg={repr(user_message[:60])}")
     context = await build_farm_context(farm_id)
 
     raw_history = await firestore_db.get_conversation_history(farm_id, conversation_id, limit=10)

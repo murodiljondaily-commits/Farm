@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTa
 from fastapi.middleware.cors import CORSMiddleware
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest
+from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo_with_claude
 from sheets_sync import sync_to_sheets_background, create_farm_sheet
@@ -367,6 +367,24 @@ async def get_context(farm_id: str):
         ctx = await build_farm_context(farm_id)
         return {"context": ctx}
     except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/farm/{farm_id}/sync-animals")
+async def sync_animals(farm_id: str, req: SyncAnimalsRequest):
+    """Push all animals from Flutter SQLite into Firestore so the AI can see them."""
+    try:
+        upserted = 0
+        for animal in req.animals:
+            ear_tag = animal.get("ear_tag", "").strip()
+            if not ear_tag:
+                continue
+            print(f"[sync-animals] farm={farm_id} ear_tag={ear_tag}")
+            await firestore_db.update_animal(farm_id, ear_tag, animal)
+            upserted += 1
+        return {"synced": upserted, "farm_id": farm_id}
+    except Exception as exc:
+        print(f"[sync-animals] ERROR: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
