@@ -131,6 +131,7 @@ async def debug_firebase():
             ("google_com", "https://www.google.com"),
             ("oauth2_googleapis", "https://oauth2.googleapis.com/"),
             ("firestore_googleapis", "https://firestore.googleapis.com/"),
+            ("anthropic_api", "https://api.anthropic.com/"),
         ]:
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "diag/1"})
