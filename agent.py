@@ -26,7 +26,7 @@ from tools import (
 )
 
 client = AsyncAnthropic(
-    api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+    api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
     http_client=httpx.AsyncClient(
         http2=False,
         timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0),
