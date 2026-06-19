@@ -39,8 +39,8 @@ ALL_TOOLS = [
         "description": "Fermaning umumiy statistikasini olish: hayvonlar soni, faol kasalliklar, muddati o'tgan emlashlar",
         "input_schema": {
             "type": "object",
-            "properties": {"farm_id": {"type": "string"}},
-            "required": ["farm_id"],
+            "properties": {},
+            "required": [],
         },
     },
     {
@@ -49,11 +49,10 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "species": {"type": "string", "description": "Hayvon turi (masalan: sigir, qo'y)"},
                 "status": {"type": "string", "description": "Holat filtri"},
             },
-            "required": ["farm_id"],
+            "required": [],
         },
     },
     {
@@ -62,10 +61,9 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "ear_tag": {"type": "string", "description": "Quloq raqami yoki hayvon ismi"},
             },
-            "required": ["farm_id", "ear_tag"],
+            "required": ["ear_tag"],
         },
     },
     {
@@ -74,7 +72,6 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "ear_tag": {"type": "string"},
                 "symptoms": {"type": "array", "items": {"type": "string"}, "description": "Belgilar ro'yxati"},
                 "body_part": {"type": "string", "description": "Ta'sirlangan tana qismi"},
@@ -84,7 +81,7 @@ ALL_TOOLS = [
                 "first_aid": {"type": "array", "items": {"type": "string"}, "description": "Darhol choralar"},
                 "photo_urls": {"type": "array", "items": {"type": "string"}},
             },
-            "required": ["farm_id", "ear_tag", "symptoms", "body_part", "severity", "ai_diagnosis", "confidence", "first_aid"],
+            "required": ["ear_tag", "symptoms", "body_part", "severity", "ai_diagnosis", "confidence", "first_aid"],
         },
     },
     {
@@ -93,11 +90,10 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "ear_tag": {"type": "string"},
                 "new_status": {"type": "string", "enum": ["sog'lom", "davolanmoqda", "kritik", "oldi", "soyildi"]},
             },
-            "required": ["farm_id", "ear_tag", "new_status"],
+            "required": ["ear_tag", "new_status"],
         },
     },
     {
@@ -106,13 +102,12 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "ear_tag": {"type": "string"},
                 "vaccine_name": {"type": "string"},
                 "date": {"type": "string", "description": "YYYY-MM-DD"},
                 "next_due": {"type": "string", "description": "Keyingi emlash sanasi YYYY-MM-DD"},
             },
-            "required": ["farm_id", "ear_tag", "vaccine_name", "date"],
+            "required": ["ear_tag", "vaccine_name", "date"],
         },
     },
     {
@@ -121,11 +116,10 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "ear_tag": {"type": "string"},
                 "weight_kg": {"type": "number"},
             },
-            "required": ["farm_id", "ear_tag", "weight_kg"],
+            "required": ["ear_tag", "weight_kg"],
         },
     },
     {
@@ -134,11 +128,10 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "liters": {"type": "number"},
                 "session": {"type": "string", "enum": ["ertalab", "kechqurun"]},
             },
-            "required": ["farm_id", "liters", "session"],
+            "required": ["liters", "session"],
         },
     },
     {
@@ -147,10 +140,9 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "ear_tag": {"type": "string"},
             },
-            "required": ["farm_id", "ear_tag"],
+            "required": ["ear_tag"],
         },
     },
     {
@@ -172,13 +164,12 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "case_id": {"type": "string"},
                 "outcome": {"type": "string", "description": "Natija: tuzaldi/yomonlashdi/o'ldi"},
                 "vet_confirmed": {"type": "boolean"},
                 "vet_notes": {"type": "string"},
             },
-            "required": ["farm_id", "case_id", "outcome"],
+            "required": ["case_id", "outcome"],
         },
     },
     {
@@ -187,12 +178,11 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "case_id": {"type": "string"},
                 "photo_url": {"type": "string"},
                 "visual_findings": {"type": "string"},
             },
-            "required": ["farm_id", "case_id", "photo_url", "visual_findings"],
+            "required": ["case_id", "photo_url", "visual_findings"],
         },
     },
     {
@@ -200,8 +190,8 @@ ALL_TOOLS = [
         "description": "Fermadagi barcha faol (yopilmagan) kasallik holatlarini olish",
         "input_schema": {
             "type": "object",
-            "properties": {"farm_id": {"type": "string"}},
-            "required": ["farm_id"],
+            "properties": {},
+            "required": [],
         },
     },
     {
@@ -210,15 +200,22 @@ ALL_TOOLS = [
         "input_schema": {
             "type": "object",
             "properties": {
-                "farm_id": {"type": "string"},
                 "event_type": {"type": "string"},
                 "data": {"type": "object"},
                 "ear_tag": {"type": "string"},
             },
-            "required": ["farm_id", "event_type", "data"],
+            "required": ["event_type", "data"],
         },
     },
 ]
+
+# Tools that require farm_id injected server-side (search_rag operates globally)
+_TOOLS_WITH_FARM_ID = {
+    "get_farm_stats", "get_all_animals", "get_animal", "add_health_case",
+    "update_animal_status", "log_vaccination", "log_weight", "log_milk",
+    "get_animal_history", "close_case", "add_photo_to_case",
+    "get_active_cases", "record_event",
+}
 
 TOOL_MAP = {
     "get_farm_stats": get_farm_stats,
@@ -256,6 +253,7 @@ Sizning vazifangiz:
 MUHIM CHEKLOVLAR:
 - Foydalanuvchidan HECH QACHON farm kodi, farm ID, foydalanuvchi ID yoki login ma'lumotlarini so'ramang — bular backend orqali avtomatik uzatiladi
 - Hayvon ID sifatida faqat yuqoridagi FARM KONTEKSTI bo'limidagi quloq raqamlaridan foydalaning
+- HECH QACHON "tizimda texnik muammo", "xatolik yuz berdi", "texnik nosozlik" yoki shunga o'xshash iboralar ISHLATMANG — agar amal bajarilmasa, aniq nima bo'lganini oddiy tilda ayting (masalan: "Bu hayvon topilmadi" yoki "Vazn saqlandi")
 
 JAVOB FORMATI (MUHIM):
 - Javoblar qisqa va aniq bo'lsin — 3-5 jumladan oshmasin
@@ -297,7 +295,7 @@ EMERGENCY_KW = [
 ]
 VET_ON_KW = [
     "men vetman", "men doktorman", "men duxturman",
-    "vet keldi", "doktor keldi", "я ветеринар", "я врач",
+    "я ветеринар", "я врач",
 ]
 VET_OFF_KW = [
     "rahmat doktor", "doktor ketdi", "men fermerman",
@@ -305,18 +303,26 @@ VET_OFF_KW = [
 ]
 
 
-async def _execute_tool(name: str, inputs: Dict) -> Any:
+async def _execute_tool(name: str, inputs: Dict, farm_id: str) -> Any:
     fn = TOOL_MAP.get(name)
     if not fn:
         return {"error": f"Noma'lum tool: {name}"}
     try:
+        # Inject farm_id from session context — overrides any value the model supplied
+        if name in _TOOLS_WITH_FARM_ID:
+            inputs = {**inputs, "farm_id": farm_id}
         print(f"[Tool] → {name}({json.dumps(inputs, ensure_ascii=False)[:150]})")
         result = await fn(**inputs)
         print(f"[Tool] ← {name}: {str(result)[:150]}")
         return result
     except Exception as exc:
         print(f"[Tool] ERROR {name}: {exc}")
-        return {"error": str(exc)}
+        msg = str(exc)
+        if "not found" in msg.lower() or "no document" in msg.lower():
+            return {"error": "Topilmadi"}
+        if "permission" in msg.lower() or "unauthorized" in msg.lower():
+            return {"error": "Ruxsat yo'q"}
+        return {"error": "Amal bajarilmadi"}
 
 
 async def run_agent(
@@ -373,7 +379,7 @@ async def run_agent(
         for block in response.content:
             if block.type == "tool_use":
                 tools_called_names.append(block.name)
-                result = await _execute_tool(block.name, block.input)
+                result = await _execute_tool(block.name, block.input, farm_id)
                 if block.name in (
                     "add_health_case", "log_vaccination", "log_weight",
                     "log_milk", "record_event", "close_case",
