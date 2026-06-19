@@ -259,7 +259,7 @@ async def get_animal_history_tool(farm_id: str, ear_tag: str) -> Dict:
         "cases": history["cases"],
         "vaccinations": history["vaccinations"],
         "weights": history["weights"],
-        "events": history["events"][:20],
+        "events": history["events"][:50],
     }
 
 

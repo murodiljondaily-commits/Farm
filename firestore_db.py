@@ -216,6 +216,36 @@ async def get_conversation_history(farm_id: str, conv_id: str, limit: int = 10) 
     return _run(_q)
 
 
+async def get_latest_conversation(farm_id: str) -> Optional[Dict]:
+    def _q():
+        docs = (
+            get_db().collection("farms")
+            .document(farm_id)
+            .collection("conversations")
+            .order_by("last_message_at", direction=firestore.Query.DESCENDING)
+            .limit(1)
+            .stream()
+        )
+        for doc in docs:
+            c = doc.to_dict()
+            c["conversation_id"] = doc.id
+            return c
+        return None
+    return _run(_q)
+
+
+async def delete_conversation(farm_id: str, conv_id: str) -> None:
+    def _q():
+        (
+            get_db().collection("farms")
+            .document(farm_id)
+            .collection("conversations")
+            .document(conv_id)
+            .delete()
+        )
+    _run(_q)
+
+
 async def save_conversation_turn(
     farm_id: str,
     conv_id: str,

@@ -401,6 +401,24 @@ async def get_animals(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.get("/farm/{farm_id}/conversation/latest")
+async def get_latest_conv(farm_id: str):
+    try:
+        conv = await firestore_db.get_latest_conversation(farm_id)
+        return conv or {"conversation_id": None, "messages": []}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.delete("/farm/{farm_id}/conversation/{conv_id}")
+async def delete_conv(farm_id: str, conv_id: str):
+    try:
+        await firestore_db.delete_conversation(farm_id, conv_id)
+        return {"success": True}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 @app.get("/farm/{farm_id}/animal/{ear_tag}")
 async def get_animal(farm_id: str, ear_tag: str):
     try:
