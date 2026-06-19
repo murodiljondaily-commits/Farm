@@ -3,6 +3,7 @@ import json
 import uuid
 from typing import Optional, List, Dict, Any
 
+import httpx
 from anthropic import AsyncAnthropic
 
 import firestore_db
@@ -24,7 +25,13 @@ from tools import (
     record_event_tool,
 )
 
-client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+client = AsyncAnthropic(
+    api_key=os.environ.get("ANTHROPIC_API_KEY", ""),
+    http_client=httpx.AsyncClient(
+        http2=False,
+        timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0),
+    ),
+)
 
 ALL_TOOLS = [
     {

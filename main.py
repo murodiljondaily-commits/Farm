@@ -214,6 +214,36 @@ async def debug_firebase():
         result["step6_grpc_write"] = "FAILED"
         result["step6_full_traceback"] = traceback.format_exc()
 
+    # ── Step 7: httpx async test (same library anthropic SDK uses) ───
+    async def _test_httpx_async():
+        import httpx, traceback as tb
+        results = {}
+        for label, url in [
+            ("anthropic_h1", "https://api.anthropic.com/"),
+            ("google_h1", "https://www.google.com"),
+        ]:
+            try:
+                async with httpx.AsyncClient(http2=False, timeout=10) as c:
+                    r = await c.get(url)
+                    results[label] = f"HTTP {r.status_code}"
+            except Exception as e:
+                results[label] = f"FAILED {type(e).__name__}: {e}"
+        for label, url in [
+            ("anthropic_h2", "https://api.anthropic.com/"),
+        ]:
+            try:
+                async with httpx.AsyncClient(http2=True, timeout=10) as c:
+                    r = await c.get(url)
+                    results[label] = f"HTTP {r.status_code}"
+            except Exception as e:
+                results[label] = f"FAILED {type(e).__name__}: {e}"
+        return results
+
+    try:
+        result["step7_httpx_async"] = await _test_httpx_async()
+    except Exception:
+        result["step7_httpx_async"] = traceback.format_exc()
+
     executor.shutdown(wait=False)
     return result
 
