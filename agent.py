@@ -388,12 +388,12 @@ async def run_agent(
 
     print(f"[Agent] run_agent farm_id={repr(farm_id)} msg={repr(user_message[:60])}")
 
-    # ── Load conversation state (pinned animal + pending write) ──────────────
+    # ── Load conversation state (pinned animal + pending writes) ─────────────
     conv_state = await firestore_db.get_conversation_state(farm_id, conversation_id)
     pinned_animal: Optional[str] = conv_state.get("pinned_animal")
-    pending_write: Optional[Dict] = conv_state.get("pending_write")
+    pending_writes: List[Dict] = conv_state.get("pending_writes", [])
 
-    print(f"[Agent] pinned_animal={pinned_animal!r}  pending_write_tool={pending_write.get('name') if pending_write else None}")
+    print(f"[Agent] pinned_animal={pinned_animal!r}  pending_writes_count={len(pending_writes)}")
 
     # ── Build context and history ─────────────────────────────────────────────
     context = await build_farm_context(farm_id)
@@ -420,37 +420,45 @@ async def run_agent(
     if is_emergency:
         user_message = f"FAVQULODDA: {user_message}"
 
-    # ── Handle pending write confirmation / cancellation ─────────────────────
+    # ── Handle pending writes confirmation / cancellation ────────────────────
     data_saved: Dict[str, Any] = {}
 
-    if pending_write:
+    if pending_writes:
         if _is_confirmation(user_message) or is_emergency:
-            # Execute the pending write now that user confirmed
-            tool_name = pending_write["name"]
-            tool_inputs = pending_write["inputs"]
-            print(f"[Agent] Executing confirmed pending write: {tool_name}")
-            result = await _execute_tool(tool_name, tool_inputs, farm_id)
-            data_saved[tool_name] = result
+            # Execute ALL pending writes now that user confirmed
+            results_summary = []
+            for pw in pending_writes:
+                tool_name = pw["name"]
+                tool_inputs = pw["inputs"]
+                print(f"[Agent] Executing confirmed pending write [{len(results_summary)+1}/{len(pending_writes)}]: {tool_name}({json.dumps(tool_inputs, ensure_ascii=False)[:80]})")
+                result = await _execute_tool(tool_name, tool_inputs, farm_id)
+                data_saved[tool_name] = result
+                results_summary.append(
+                    f"'{tool_name}': {json.dumps(result, ensure_ascii=False, default=str)}"
+                )
+                print(f"[Agent] Confirmed write result: {str(result)[:120]}")
 
-            # Clear pending write
+            # Clear ALL pending writes
             await firestore_db.update_conversation_state(
-                farm_id, conversation_id, {"pending_write": None}
+                farm_id, conversation_id, {"pending_writes": []}
             )
+            print(f"[Agent] Cleared pending_writes after executing {len(pending_writes)} writes")
 
-            # Inject confirmation result into user message so AI formats a good response
+            # Inject all results into user message so AI formats a good response
             user_message = (
                 f"{user_message}\n\n"
-                f"[TIZIM: Foydalanuvchi '{tool_name}' amalini tasdiqladi. "
-                f"Natija: {json.dumps(result, ensure_ascii=False, default=str)}. "
+                f"[TIZIM: Foydalanuvchi {len(pending_writes)} ta amalni tasdiqladi. "
+                f"Natijalar: {'; '.join(results_summary)}. "
                 f"Foydalanuvchiga nima o'zgarganini qisqa xabarlang.]"
             )
         else:
-            # User sent something that's not a confirmation — cancel pending write
-            print(f"[Agent] Cancelling pending write (no confirmation): {pending_write.get('name')}")
+            # User sent something that's not a confirmation — cancel all pending writes
+            names = [pw.get("name") for pw in pending_writes]
+            print(f"[Agent] Cancelling pending writes (no confirmation): {names}")
             await firestore_db.update_conversation_state(
-                farm_id, conversation_id, {"pending_write": None}
+                farm_id, conversation_id, {"pending_writes": []}
             )
-            pending_write = None
+            pending_writes = []
 
     messages.append({"role": "user", "content": user_message})
 
@@ -489,13 +497,35 @@ async def run_agent(
                 inputs["ear_tag"] = pinned_animal
                 print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {block.name}")
 
+            # ── Pin animal from write tool inputs (Issue 3) ───────────────────
+            tool_ear_tag = inputs.get("ear_tag")
+            if tool_ear_tag and tool_ear_tag != pinned_animal:
+                pinned_animal = tool_ear_tag
+                try:
+                    await firestore_db.update_conversation_state(
+                        farm_id, conversation_id, {"pinned_animal": pinned_animal}
+                    )
+                    print(f"[Agent] Pinned animal (from {block.name} input) → {pinned_animal!r}")
+                except Exception as pin_exc:
+                    print(f"[Agent] WARNING: Could not save pin for {pinned_animal!r}: {pin_exc}")
+
             # ── Intercept write tools: require confirmation ───────────────────
             if block.name in _WRITE_TOOLS_REQUIRE_CONFIRM and not is_emergency:
-                print(f"[Agent] Intercepting write tool {block.name} — awaiting confirmation")
-                await firestore_db.update_conversation_state(
-                    farm_id, conversation_id,
-                    {"pending_write": {"name": block.name, "inputs": inputs}},
-                )
+                # Reload current pending_writes from Firestore to avoid overwrite race
+                try:
+                    current_state = await firestore_db.get_conversation_state(farm_id, conversation_id)
+                    current_writes = current_state.get("pending_writes", [])
+                except Exception:
+                    current_writes = list(pending_writes)
+                current_writes.append({"name": block.name, "inputs": inputs})
+                print(f"[Agent] Queuing write tool {block.name} — pending_writes now {len(current_writes)}")
+                try:
+                    await firestore_db.update_conversation_state(
+                        farm_id, conversation_id,
+                        {"pending_writes": current_writes},
+                    )
+                except Exception as exc:
+                    print(f"[Agent] WARNING: Could not save pending_writes: {exc}")
                 write_intercepted = True
                 tool_results.append({
                     "type": "tool_result",
@@ -519,10 +549,13 @@ async def run_agent(
                     new_pin = result.get("ear_tag")
                     if new_pin and new_pin != pinned_animal:
                         pinned_animal = new_pin
-                        await firestore_db.update_conversation_state(
-                            farm_id, conversation_id, {"pinned_animal": pinned_animal}
-                        )
-                        print(f"[Agent] Pinned animal → {pinned_animal!r}")
+                        try:
+                            await firestore_db.update_conversation_state(
+                                farm_id, conversation_id, {"pinned_animal": pinned_animal}
+                            )
+                            print(f"[Agent] Pinned animal (lookup result) → {pinned_animal!r}")
+                        except Exception as pin_exc:
+                            print(f"[Agent] WARNING: Could not save pin: {pin_exc}")
 
                 if block.name in (
                     "add_health_case", "log_vaccination", "log_weight",

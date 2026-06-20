@@ -230,7 +230,7 @@ async def get_recent_events(farm_id: str, days: int = 7) -> List[Dict]:
 # ─── Conversations ────────────────────────────────────────────────
 
 async def get_conversation_state(farm_id: str, conv_id: str) -> Dict:
-    """Return non-message metadata: pinned_animal, pending_write."""
+    """Return non-message metadata: pinned_animal, pending_writes (list)."""
     def _q():
         doc = (
             get_db().collection("farms")
@@ -242,9 +242,16 @@ async def get_conversation_state(farm_id: str, conv_id: str) -> Dict:
         if not doc.exists:
             return {}
         data = doc.to_dict()
+        # Support legacy single-dict pending_write and new list pending_writes
+        raw_writes = data.get("pending_writes")
+        if raw_writes is None:
+            legacy = data.get("pending_write")
+            raw_writes = [legacy] if isinstance(legacy, dict) else []
+        elif not isinstance(raw_writes, list):
+            raw_writes = []
         return {
             "pinned_animal": data.get("pinned_animal"),
-            "pending_write": data.get("pending_write"),
+            "pending_writes": raw_writes,
         }
     return _run(_q)
 
