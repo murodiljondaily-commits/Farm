@@ -6,9 +6,10 @@ load_dotenv()
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest
+from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo_with_claude
 from sheets_sync import sync_to_sheets_background, create_farm_sheet
@@ -499,4 +500,47 @@ async def create_sheet(farm_id: str, req: CreateSheetRequest):
         sheet_url = await create_farm_sheet(farm_id, farm_name, req.owner_email)
         return {"sheet_url": sheet_url, "success": True}
     except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+# ─── TTS proxy (Yandex SpeechKit) ────────────────────────────────
+
+@app.post("/tts")
+async def tts(req: TtsRequest):
+    api_key = os.environ.get("YANDEX_TTS_API_KEY", "")
+    folder_id = os.environ.get("YANDEX_FOLDER_ID", "")
+    if not api_key or not folder_id:
+        print("[TTS] ERROR: YANDEX_TTS_API_KEY or YANDEX_FOLDER_ID not set")
+        raise HTTPException(status_code=503, detail="TTS service not configured")
+
+    text = req.text[:5000]  # Yandex limit
+    print(f"[TTS] Synthesizing {len(text)} chars via Yandex SpeechKit")
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://tts.api.cloud.yandex.net/speech/v1/tts:synthesize",
+                headers={"Authorization": f"Api-Key {api_key}"},
+                data={
+                    "text": text,
+                    "lang": "uz-UZ",
+                    "voice": "nigora",
+                    "speed": "1.2",
+                    "folderId": folder_id,
+                    "format": "oggopus",
+                },
+            )
+        print(f"[TTS] Yandex status={resp.status_code} bytes={len(resp.content)}")
+        if resp.status_code != 200:
+            print(f"[TTS] Yandex error body: {resp.text[:300]}")
+            raise HTTPException(status_code=502, detail=f"Yandex TTS error {resp.status_code}: {resp.text[:200]}")
+        return Response(content=resp.content, media_type="audio/ogg")
+    except httpx.TimeoutException:
+        print("[TTS] Yandex request timed out")
+        raise HTTPException(status_code=504, detail="TTS request timed out")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[TTS] Unexpected error: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))

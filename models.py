@@ -40,3 +40,7 @@ class CreateFarmRequest(BaseModel):
     owner_name: str
     owner_email: Optional[str] = None
     phone: Optional[str] = None
+
+
+class TtsRequest(BaseModel):
+    text: str
