@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTa
 from fastapi.middleware.cors import CORSMiddleware
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest
+from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo_with_claude
 from sheets_sync import sync_to_sheets_background, create_farm_sheet
@@ -30,6 +30,48 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "ok", "version": "1.0"}
+
+
+# ─── Farm creation + join-code lookup ────────────────────────────
+
+@app.post("/farm")
+async def create_farm(req: CreateFarmRequest):
+    """Called when a new farm is set up; persists the farm to Firestore so
+    other devices can look it up by join code."""
+    try:
+        await firestore_db.save_farm({
+            "farm_id": req.farm_id,
+            "name": req.farm_name,
+            "farm_code": req.farm_code.upper(),
+            "location": req.location,
+            "owner_name": req.owner_name,
+            "owner_email": req.owner_email,
+            "phone": req.phone,
+        })
+        return {"success": True, "farm_id": req.farm_id}
+    except Exception as exc:
+        print(f"[/farm POST] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.get("/farm-by-code/{farm_code}")
+async def get_farm_by_code(farm_code: str):
+    """Look up a farm by its join code; used by device-2 during join flow."""
+    try:
+        farm = await firestore_db.get_farm_by_code(farm_code.upper())
+        if not farm:
+            return {"found": False}
+        return {
+            "found": True,
+            "farm_id": farm["farm_id"],
+            "farm_name": farm.get("name", ""),
+            "farm_code": farm.get("farm_code", farm_code.upper()),
+            "location": farm.get("location", ""),
+            "owner_name": farm.get("owner_name", ""),
+        }
+    except Exception as exc:
+        print(f"[/farm-by-code] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ─── Diagnostics (temporary) ──────────────────────────────────────

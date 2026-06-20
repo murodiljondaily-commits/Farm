@@ -59,7 +59,7 @@ async def get_all_animals_tool(
 async def get_animal_tool(farm_id: str, ear_tag: str) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
-        return {"error": f"Hayvon topilmadi: {ear_tag}"}
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
 
     history = await firestore_db.get_animal_history(farm_id, animal["ear_tag"])
     animal["recent_cases"] = history["cases"][:3]
@@ -86,7 +86,7 @@ async def add_health_case(
     photo_urls = photo_urls or []
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
-        return {"error": f"Hayvon topilmadi: {ear_tag}"}
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
 
     case_data = {
         "ear_tag": ear_tag,
@@ -152,7 +152,7 @@ async def add_health_case(
 async def update_animal_status(farm_id: str, ear_tag: str, new_status: str) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
-        return {"error": f"Hayvon topilmadi: {ear_tag}"}
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
 
     old_status = animal.get("status", "")
     await firestore_db.update_animal(farm_id, ear_tag, {"status": new_status})
@@ -180,7 +180,7 @@ async def log_vaccination(
 ) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
-        return {"error": f"Hayvon topilmadi: {ear_tag}"}
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
 
     await firestore_db.update_animal(farm_id, ear_tag, {"last_vaccination": date})
     event_id = await firestore_db.create_event(farm_id, {
@@ -201,7 +201,7 @@ async def log_vaccination(
 async def log_weight(farm_id: str, ear_tag: str, weight_kg: float) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
-        return {"error": f"Hayvon topilmadi: {ear_tag}"}
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
 
     old_weight = animal.get("weight_current", 0) or 0
     change = round(weight_kg - old_weight, 1) if old_weight else 0.0
@@ -252,7 +252,7 @@ async def log_milk(farm_id: str, liters: float, session: str) -> Dict:
 async def get_animal_history_tool(farm_id: str, ear_tag: str) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
-        return {"error": f"Hayvon topilmadi: {ear_tag}"}
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
     history = await firestore_db.get_animal_history(farm_id, animal["ear_tag"])
     return {
         "animal": animal,
@@ -260,6 +260,40 @@ async def get_animal_history_tool(farm_id: str, ear_tag: str) -> Dict:
         "vaccinations": history["vaccinations"],
         "weights": history["weights"],
         "events": history["events"][:50],
+    }
+
+
+# ─── 9b. get_animal_full_record ──────────────────────────────────
+
+async def get_animal_full_record_tool(farm_id: str, ear_tag: str) -> Dict:
+    """Return complete current record for an animal in a single call.
+    Call this BEFORE answering questions about an animal's history or
+    BEFORE proposing any write action (status/illness/vaccine/weight)."""
+    animal = await firestore_db.get_animal(farm_id, ear_tag)
+    if not animal:
+        return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+
+    history = await firestore_db.get_animal_history(farm_id, animal["ear_tag"])
+    active_cases = [c for c in history["cases"] if not c.get("closed_at")]
+    closed_cases = [c for c in history["cases"] if c.get("closed_at")]
+
+    return {
+        "found": True,
+        "ear_tag": animal["ear_tag"],
+        "name": animal.get("name", ""),
+        "species": animal.get("species", ""),
+        "breed": animal.get("breed", ""),
+        "sex": animal.get("sex", ""),
+        "age_months": animal.get("age_months"),
+        "dob": animal.get("dob"),
+        "status": animal.get("status", ""),
+        "weight_current": animal.get("weight_current"),
+        "pregnancy_status": animal.get("pregnancy_status"),
+        "pregnancy_month": animal.get("pregnancy_month"),
+        "active_cases": active_cases,
+        "closed_cases": closed_cases,
+        "vaccinations": history["vaccinations"],
+        "weight_history": history["weights"],
     }
 
 
@@ -296,7 +330,7 @@ async def close_case(
 ) -> Dict:
     case = await firestore_db.get_case(farm_id, case_id)
     if not case:
-        return {"error": f"Holat topilmadi: {case_id}"}
+        return {"found": False, "message": f"Bu holat topilmadi: {case_id}"}
 
     now_iso = datetime.now(timezone.utc).isoformat()
     await firestore_db.update_case(farm_id, case_id, {
@@ -335,7 +369,7 @@ async def add_photo_to_case(
 ) -> Dict:
     case = await firestore_db.get_case(farm_id, case_id)
     if not case:
-        return {"error": f"Holat topilmadi: {case_id}"}
+        return {"found": False, "message": f"Bu holat topilmadi: {case_id}"}
 
     photo_urls = case.get("photo_urls", []) + [photo_url]
     await firestore_db.update_case(farm_id, case_id, {

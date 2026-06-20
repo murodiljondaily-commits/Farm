@@ -12,6 +12,7 @@ from tools import (
     get_farm_stats,
     get_all_animals_tool,
     get_animal_tool,
+    get_animal_full_record_tool,
     add_health_case,
     update_animal_status,
     log_vaccination,
@@ -57,11 +58,27 @@ ALL_TOOLS = [
     },
     {
         "name": "get_animal",
-        "description": "Quloq raqami yoki ism bo'yicha hayvonning to'liq ma'lumotlarini olish",
+        "description": "Quloq raqami yoki ism bo'yicha hayvonning asosiy ma'lumotlarini olish",
         "input_schema": {
             "type": "object",
             "properties": {
                 "ear_tag": {"type": "string", "description": "Quloq raqami yoki hayvon ismi"},
+            },
+            "required": ["ear_tag"],
+        },
+    },
+    {
+        "name": "get_animal_full_record",
+        "description": (
+            "Hayvonning BARCHA ma'lumotlarini bir chaqiruvda olish: joriy holat, "
+            "ochiq va yopilgan kasallik tarixi, emlashlar, vazn tarixchasi, asosiy ma'lumotlar. "
+            "Hayvon haqida har qanday savol yoki yozish amalidan (holat, kasallik, emlash, vazn) OLDIN "
+            "albatta shu toolni chaqiring — taxmin qilmang, haqiqiy ma'lumotdan foydalaning."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ear_tag": {"type": "string", "description": "Quloq raqami yoki ism"},
             },
             "required": ["ear_tag"],
         },
@@ -209,18 +226,28 @@ ALL_TOOLS = [
     },
 ]
 
-# Tools that require farm_id injected server-side (search_rag operates globally)
+# Tools that require farm_id injected server-side
 _TOOLS_WITH_FARM_ID = {
-    "get_farm_stats", "get_all_animals", "get_animal", "add_health_case",
-    "update_animal_status", "log_vaccination", "log_weight", "log_milk",
-    "get_animal_history", "close_case", "add_photo_to_case",
+    "get_farm_stats", "get_all_animals", "get_animal", "get_animal_full_record",
+    "add_health_case", "update_animal_status", "log_vaccination", "log_weight",
+    "log_milk", "get_animal_history", "close_case", "add_photo_to_case",
     "get_active_cases", "record_event",
+}
+
+# Tools that look up / pin an animal on successful return
+_ANIMAL_LOOKUP_TOOLS = {"get_animal", "get_animal_full_record"}
+
+# Write tools that require explicit user confirmation before execution
+_WRITE_TOOLS_REQUIRE_CONFIRM = {
+    "add_health_case", "update_animal_status", "log_vaccination",
+    "log_weight", "close_case",
 }
 
 TOOL_MAP = {
     "get_farm_stats": get_farm_stats,
     "get_all_animals": get_all_animals_tool,
     "get_animal": get_animal_tool,
+    "get_animal_full_record": get_animal_full_record_tool,
     "add_health_case": add_health_case,
     "update_animal_status": update_animal_status,
     "log_vaccination": log_vaccination,
@@ -234,33 +261,67 @@ TOOL_MAP = {
     "record_event": record_event_tool,
 }
 
-SYSTEM_BASE = """Siz AgriVet ilovasining "Muxlisa" — Farg'ona vodiysidan 15 yillik tajribali veterinar va ferma menejeri.
+# ── Confirmation keywords ─────────────────────────────────────────────────────
+
+_CONFIRM_KW = [
+    "ha", "ha,", "ha.", "ha!", "xo'p", "xop", "mayli", "bajar",
+    "saqlang", "tasdiqlash", "tasdiqlayman", "tasdiq", "ok", "okay",
+    "да", "подтверждаю", "подтверждаем", "ладно", "хорошо", "сохрани", "yes",
+]
+
+
+def _is_confirmation(text: str) -> bool:
+    lower = text.lower().strip()
+    return any(lower == kw or lower.startswith(kw + " ") or lower.startswith(kw + ",")
+               for kw in _CONFIRM_KW)
+
+
+# ── System prompt ─────────────────────────────────────────────────────────────
+
+SYSTEM_BASE = """Siz AgriVet ilovasining "Asomiddin" — Farg'ona vodiysidan 15 yillik tajribali veterinar va ferma menejeri.
 
 Sizning vazifangiz:
 1. Fermer aytgan har bir so'zni JIDDIY qabul qiling
-2. Hayvon muammosi haqida eshitsangiz — DARHOL harakat qiling:
-   - Holatni o'zgartiring (kritik/davolanmoqda)
-   - Kasallik holati oching
-   - Rasm so'rang (agar yuborilmagan bo'lsa)
-   - Aniq ko'rsatmalar bering
-3. Ma'lumotlarni SO'RAMASDAN saqlang — har bir gap ma'lumot
+2. Hayvon muammosi haqida eshitsangiz — avval get_animal_full_record chaqiring, keyin harakat qiling
+3. Ma'lumotlarni saqlashdan OLDIN foydalanuvchidan tasdiq so'rang (quyidagi ko'rsatmaga qarang)
 4. Fermer "Men vetman/doktorman" desa — VET REJIMIGA o'ting
 5. Javob tili: foydalanuvchi tilini aniqlang (uz/ru) va shu tilda javob bering
 6. HECH QACHON "veterinarga murojaat qiling" deb TUGAMANG — SIZ veterinarsiz
 7. Ishonch darajangizni DOIM ko'rsating (X%)
 8. Favqulodda holatlarda: DARHOL harakatlaning, keyin tushuntiring
 
+HAYVON PINNING (MUHIM):
+- Suhbat davomida bir hayvon aniqlangandan so'ng, u "pinned" (mahkamlangan) hayvon bo'ladi
+- Pinned hayvon: {pinned_animal}
+- Agar foydalanuvchi boshqa hayvon nomini aniq keltirmasa, barcha tool calllar pinned hayvon uchun
+- Agar foydalanuvchi xira/qisqa javob bersa (faqat ism yoki "u" desa), pinned hayvondan davom eting
+- Hayvon o'zgarganda: belgilar/tashxis ma'lumotini TOZALANG — eski hayvon belgilari yangi hayvonga o'tmaydi
+
+MA'LUMOT SAQLASHDAN OLDIN TASDIQ OLISH (MUHIM):
+- Holat o'zgartirish, kasallik ochish, emlash, vazn yozishdan OLDIN:
+  * Nima qilmoqchi ekanligingizni aniq aytib, foydalanuvchidan "ha" yoki "tasdiqlayman" so'rang
+  * Masalan: "Hamroni 'Davolanmoqda' deb belgilayman. Tasdiqlaysizmi?"
+  * MUHIM: Tasdiq so'raganda write toolni CHAQIRMANG — faqat matn qaytaring
+- Foydalanuvchi "ha/ok/tasdiqlayman" desa: write toolni chaqiring va natijani xabarlang
+- Favqulodda holat (qon oqmoqda, nafas olmayapti va h.k.): tasdiqsiz darhol harakatlaning
+
+MA'LUMOTNI O'QISHDAN OLDIN:
+- Hayvon tarixi, holati yoki kasalliklarini so'rashdan OLDIN — avval get_animal_full_record chaqiring
+- Taxmin qilmang — haqiqiy ma'lumotdan javob bering
+
 MUHIM CHEKLOVLAR:
-- Foydalanuvchidan HECH QACHON farm kodi, farm ID, foydalanuvchi ID yoki login ma'lumotlarini so'ramang — bular backend orqali avtomatik uzatiladi
-- Hayvon ID sifatida faqat yuqoridagi FARM KONTEKSTI bo'limidagi quloq raqamlaridan foydalaning
-- HECH QACHON "tizimda texnik muammo", "xatolik yuz berdi", "texnik nosozlik" yoki shunga o'xshash iboralar ISHLATMANG — agar amal bajarilmasa, aniq nima bo'lganini oddiy tilda ayting (masalan: "Bu hayvon topilmadi" yoki "Vazn saqlandi")
+- Foydalanuvchidan HECH QACHON farm kodi, farm ID, foydalanuvchi ID yoki login ma'lumotlarini so'ramang
+- Hayvon ID sifatida faqat FARM KONTEKSTI bo'limidagi quloq raqamlaridan foydalaning
+- HECH QACHON "tizimda texnik muammo", "xatolik yuz berdi", "texnik nosozlik" kabi iboralar ISHLATMANG
+- Tool natijasida {{"found": false}} bo'lsa: aniq ayting va foydalanuvchidan aniqlang
+- Tool natijasida {{"success": false}} bo'lsa: "Saqlashda muammo bo'ldi, qayta urinib ko'ring" deng
 
 JAVOB FORMATI (MUHIM):
 - Javoblar qisqa va aniq bo'lsin — 3-5 jumladan oshmasin
-- Markdown jadval (|---|) va sarlavha (##, ###) ISHLATMANG
+- HECH QACHON markdown belgilari ishlatmang: ** (bold), * (italic), - (bullet), # (sarlavha), | (jadval)
 - Ko'p bo'sh qator qoldirmang
 - Faqat oddiy matn va kerak bo'lsa raqamlangan ro'yxat (1. 2. 3.) ishlating
-- Mobil chatda o'qish oson bo'lishi kerak
+- Mobil chatda o'qish oson bo'lishi kerak — markdown belgilari ekranda harf sifatida ko'rinadi
 
 FARM KONTEKSTI:
 {farm_context}
@@ -270,23 +331,14 @@ FOYDALANUVCHI ROLI: {user_role}"""
 
 VET_MODE_SUFFIX = """
 
-VET REJIMI FAOL 🩺
-Siz hozir ferma veterinariga to'liq hisobot berasiz. Professional format:
+VET REJIMI FAOL
+Siz hozir ferma veterinariga to'liq hisobot berasiz. Qisqa professional format:
 
-🚨 KRITIK HOLATLAR:
-[ro'yxat — sanalar, belgilar, rasmlar]
-
-📋 FAOL KASALLIKLAR:
-[ro'yxat — to'liq tarix bilan]
-
-⚠️ DIQQAT TALAB ETADI:
-[muddati o'tgan emlashlar, vazn pasayishi va h.k.]
-
-📊 STATISTIKA (oxirgi 30 kun):
-[ochilgan/yopilgan holatlar, eng ko'p uchragan muammolar]
-
-💊 DORI-DARMON TAVSIYALARI:
-[hozirgi faol holatlarga asoslanib]"""
+KRITIK HOLATLAR: [ro'yxat — sanalar, belgilar]
+FAOL KASALLIKLAR: [ro'yxat — to'liq tarix bilan]
+DIQQAT TALAB ETADI: [muddati o'tgan emlashlar, vazn pasayishi]
+STATISTIKA (oxirgi 30 kun): [ochilgan/yopilgan holatlar]
+DORI-DARMON TAVSIYALARI: [hozirgi faol holatlarga asoslanib]"""
 
 EMERGENCY_KW = [
     "qon oqmoqda", "yiqilib qoldi", "nafas olmayapti",
@@ -306,9 +358,8 @@ VET_OFF_KW = [
 async def _execute_tool(name: str, inputs: Dict, farm_id: str) -> Any:
     fn = TOOL_MAP.get(name)
     if not fn:
-        return {"error": f"Noma'lum tool: {name}"}
+        return {"success": False, "message": f"Noma'lum tool: {name}"}
     try:
-        # Inject farm_id from session context — overrides any value the model supplied
         if name in _TOOLS_WITH_FARM_ID:
             inputs = {**inputs, "farm_id": farm_id}
         print(f"[Tool] → {name}({json.dumps(inputs, ensure_ascii=False)[:150]})")
@@ -319,10 +370,10 @@ async def _execute_tool(name: str, inputs: Dict, farm_id: str) -> Any:
         print(f"[Tool] ERROR {name}: {exc}")
         msg = str(exc)
         if "not found" in msg.lower() or "no document" in msg.lower():
-            return {"error": "Topilmadi"}
+            return {"found": False, "message": "Topilmadi"}
         if "permission" in msg.lower() or "unauthorized" in msg.lower():
-            return {"error": "Ruxsat yo'q"}
-        return {"error": "Amal bajarilmadi"}
+            return {"success": False, "message": "Ruxsat yo'q"}
+        return {"success": False, "message": "Amal bajarilmadi"}
 
 
 async def run_agent(
@@ -336,8 +387,16 @@ async def run_agent(
         conversation_id = uuid.uuid4().hex[:12]
 
     print(f"[Agent] run_agent farm_id={repr(farm_id)} msg={repr(user_message[:60])}")
-    context = await build_farm_context(farm_id)
 
+    # ── Load conversation state (pinned animal + pending write) ──────────────
+    conv_state = await firestore_db.get_conversation_state(farm_id, conversation_id)
+    pinned_animal: Optional[str] = conv_state.get("pinned_animal")
+    pending_write: Optional[Dict] = conv_state.get("pending_write")
+
+    print(f"[Agent] pinned_animal={pinned_animal!r}  pending_write_tool={pending_write.get('name') if pending_write else None}")
+
+    # ── Build context and history ─────────────────────────────────────────────
+    context = await build_farm_context(farm_id)
     raw_history = await firestore_db.get_conversation_history(farm_id, conversation_id, limit=10)
     messages: List[Dict] = [
         {"role": m["role"], "content": m["content"]}
@@ -345,24 +404,59 @@ async def run_agent(
         if m.get("role") in ("user", "assistant")
     ]
 
+    pinned_label = pinned_animal if pinned_animal else "Hali aniqlanmagan"
     system_prompt = SYSTEM_BASE.format(
         farm_context=context,
-        vet_mode="FAOL 🩺" if vet_mode else "O'CHIQ",
+        pinned_animal=pinned_label,
+        vet_mode="FAOL" if vet_mode else "O'CHIQ",
         user_role=user_role,
     )
     if vet_mode:
         system_prompt += VET_MODE_SUFFIX
 
+    # ── Emergency detection ───────────────────────────────────────────────────
     msg_lower = user_message.lower()
     is_emergency = any(kw in msg_lower for kw in EMERGENCY_KW)
     if is_emergency:
-        user_message = f"⚠️ FAVQULODDA: {user_message}"
+        user_message = f"FAVQULODDA: {user_message}"
+
+    # ── Handle pending write confirmation / cancellation ─────────────────────
+    data_saved: Dict[str, Any] = {}
+
+    if pending_write:
+        if _is_confirmation(user_message) or is_emergency:
+            # Execute the pending write now that user confirmed
+            tool_name = pending_write["name"]
+            tool_inputs = pending_write["inputs"]
+            print(f"[Agent] Executing confirmed pending write: {tool_name}")
+            result = await _execute_tool(tool_name, tool_inputs, farm_id)
+            data_saved[tool_name] = result
+
+            # Clear pending write
+            await firestore_db.update_conversation_state(
+                farm_id, conversation_id, {"pending_write": None}
+            )
+
+            # Inject confirmation result into user message so AI formats a good response
+            user_message = (
+                f"{user_message}\n\n"
+                f"[TIZIM: Foydalanuvchi '{tool_name}' amalini tasdiqladi. "
+                f"Natija: {json.dumps(result, ensure_ascii=False, default=str)}. "
+                f"Foydalanuvchiga nima o'zgarganini qisqa xabarlang.]"
+            )
+        else:
+            # User sent something that's not a confirmation — cancel pending write
+            print(f"[Agent] Cancelling pending write (no confirmation): {pending_write.get('name')}")
+            await firestore_db.update_conversation_state(
+                farm_id, conversation_id, {"pending_write": None}
+            )
+            pending_write = None
 
     messages.append({"role": "user", "content": user_message})
 
     tools_called_names: List[str] = []
-    data_saved: Dict[str, Any] = {}
 
+    # ── Agent loop ────────────────────────────────────────────────────────────
     response = await client.messages.create(
         model="claude-sonnet-4-6",
         max_tokens=4096,
@@ -375,16 +469,67 @@ async def run_agent(
     while response.stop_reason == "tool_use":
         tool_results = []
         assistant_content = response.content
+        write_intercepted = False
 
         for block in response.content:
-            if block.type == "tool_use":
-                tools_called_names.append(block.name)
-                result = await _execute_tool(block.name, block.input, farm_id)
+            if block.type != "tool_use":
+                continue
+
+            tools_called_names.append(block.name)
+            inputs = dict(block.input)
+
+            # ── Auto-inject pinned animal into ear_tag if AI omitted it ─────
+            if (
+                pinned_animal
+                and "ear_tag" not in inputs
+                and block.name in _TOOLS_WITH_FARM_ID
+                and block.name not in ("get_farm_stats", "get_all_animals", "get_active_cases",
+                                       "log_milk", "record_event", "search_rag")
+            ):
+                inputs["ear_tag"] = pinned_animal
+                print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {block.name}")
+
+            # ── Intercept write tools: require confirmation ───────────────────
+            if block.name in _WRITE_TOOLS_REQUIRE_CONFIRM and not is_emergency:
+                print(f"[Agent] Intercepting write tool {block.name} — awaiting confirmation")
+                await firestore_db.update_conversation_state(
+                    farm_id, conversation_id,
+                    {"pending_write": {"name": block.name, "inputs": inputs}},
+                )
+                write_intercepted = True
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": json.dumps({
+                        "pending": True,
+                        "message": (
+                            "Bu amal foydalanuvchi tasdigini kutmoqda. "
+                            "Foydalanuvchiga nima qilmoqchi ekanligingizni aniq, qisqa va oddiy matnda tushuntiring. "
+                            "Masalan: 'Hamroni Sogʻlom deb belgilayman. Tasdiqlaysizmi?' "
+                            "MUHIM: markdown belgilari ishlatmang."
+                        ),
+                    }, ensure_ascii=False),
+                })
+            else:
+                # Execute normally
+                result = await _execute_tool(block.name, inputs, farm_id)
+
+                # ── Auto-pin animal on successful lookup ─────────────────────
+                if block.name in _ANIMAL_LOOKUP_TOOLS and result.get("found") is not False:
+                    new_pin = result.get("ear_tag")
+                    if new_pin and new_pin != pinned_animal:
+                        pinned_animal = new_pin
+                        await firestore_db.update_conversation_state(
+                            farm_id, conversation_id, {"pinned_animal": pinned_animal}
+                        )
+                        print(f"[Agent] Pinned animal → {pinned_animal!r}")
+
                 if block.name in (
                     "add_health_case", "log_vaccination", "log_weight",
                     "log_milk", "record_event", "close_case",
                 ):
                     data_saved[block.name] = result
+
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": block.id,
@@ -402,7 +547,7 @@ async def run_agent(
             tools=ALL_TOOLS,
             messages=messages,
         )
-        print(f"[Agent] (loop) stop_reason={response.stop_reason}")
+        print(f"[Agent] (loop) stop_reason={response.stop_reason}  write_intercepted={write_intercepted}")
 
     final_text = "".join(
         block.text for block in response.content if hasattr(block, "text") and block.text
@@ -428,4 +573,5 @@ async def run_agent(
         "conversation_id": conversation_id,
         "data_saved": data_saved,
         "is_emergency": is_emergency,
+        "pinned_animal": pinned_animal,
     }

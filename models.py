@@ -30,3 +30,13 @@ class CreateSheetRequest(BaseModel):
 
 class SyncAnimalsRequest(BaseModel):
     animals: List[Dict[str, Any]]
+
+
+class CreateFarmRequest(BaseModel):
+    farm_id: str
+    farm_name: str
+    farm_code: str
+    location: str
+    owner_name: str
+    owner_email: Optional[str] = None
+    phone: Optional[str] = None

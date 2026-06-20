@@ -59,6 +59,34 @@ async def get_farm(farm_id: str) -> Optional[Dict]:
     return _run(_q)
 
 
+async def save_farm(farm_data: Dict) -> None:
+    """Upsert a farm document into Firestore."""
+    farm_id = farm_data["farm_id"]
+    payload = {k: v for k, v in farm_data.items() if k != "farm_id"}
+    payload["updated_at"] = datetime.now(timezone.utc).isoformat()
+    def _q():
+        get_db().collection("farms").document(farm_id).set(payload, merge=True)
+    _run(_q)
+
+
+async def get_farm_by_code(farm_code: str) -> Optional[Dict]:
+    """Look up a farm by its join code (case-insensitive exact match)."""
+    upper = farm_code.upper()
+    def _q():
+        docs = (
+            get_db().collection("farms")
+            .where("farm_code", "==", upper)
+            .limit(1)
+            .stream()
+        )
+        for doc in docs:
+            data = doc.to_dict()
+            data["farm_id"] = doc.id
+            return data
+        return None
+    return _run(_q)
+
+
 # ─── Animals ─────────────────────────────────────────────────────
 
 async def get_all_animals(
@@ -200,6 +228,39 @@ async def get_recent_events(farm_id: str, days: int = 7) -> List[Dict]:
 
 
 # ─── Conversations ────────────────────────────────────────────────
+
+async def get_conversation_state(farm_id: str, conv_id: str) -> Dict:
+    """Return non-message metadata: pinned_animal, pending_write."""
+    def _q():
+        doc = (
+            get_db().collection("farms")
+            .document(farm_id)
+            .collection("conversations")
+            .document(conv_id)
+            .get()
+        )
+        if not doc.exists:
+            return {}
+        data = doc.to_dict()
+        return {
+            "pinned_animal": data.get("pinned_animal"),
+            "pending_write": data.get("pending_write"),
+        }
+    return _run(_q)
+
+
+async def update_conversation_state(farm_id: str, conv_id: str, updates: Dict) -> None:
+    """Merge metadata fields (pinned_animal, pending_write, …) into conversation doc."""
+    def _q():
+        (
+            get_db().collection("farms")
+            .document(farm_id)
+            .collection("conversations")
+            .document(conv_id)
+            .set(updates, merge=True)
+        )
+    _run(_q)
+
 
 async def get_conversation_history(farm_id: str, conv_id: str, limit: int = 10) -> List[Dict]:
     def _q():
