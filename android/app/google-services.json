@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "3764155961",
+    "project_id": "appag-499817-71026",
+    "storage_bucket": "appag-499817-71026.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:3764155961:android:081ac42d9c3fe3f9feffe8",
+        "android_client_info": {
+          "package_name": "com.example.agrivet"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "3764155961-iero64egmbel3s63crh4tq41mvabpush.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.agrivet",
+            "certificate_hash": "093140ac36cf576474b01aba5633d79b708a9acd"
+          }
+        },
+        {
+          "client_id": "3764155961-i65drlrkajoljn96d78464sbtbrqkp79.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeT0p-djoyo72qFeoOuRVmDdybxSK-Wgc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "3764155961-i65drlrkajoljn96d78464sbtbrqkp79.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
