@@ -42,12 +42,18 @@ async def upload_photo(
     return blob.public_url
 
 
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+
 async def analyze_photo_with_claude(
     image_bytes: bytes,
     animal_context: str,
     body_part_hint: str = "",
+    content_type: str = "image/jpeg",
 ) -> Dict:
     image_b64 = base64.b64encode(image_bytes).decode()
+
+    # Anthropic only accepts jpeg/png/gif/webp — normalise everything else to jpeg
+    media_type = content_type if content_type in _ALLOWED_IMAGE_TYPES else "image/jpeg"
 
     prompt = f"""Siz tajribali veterinarsiz. Bu hayvon rasmini tahlil qiling.
 
@@ -75,7 +81,7 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
                         "type": "image",
                         "source": {
                             "type": "base64",
-                            "media_type": "image/jpeg",
+                            "media_type": media_type,
                             "data": image_b64,
                         },
                     },

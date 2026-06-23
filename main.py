@@ -438,8 +438,11 @@ async def diagnose_photo(
     """Vision diagnosis endpoint — Flutter uploads image, backend calls Anthropic."""
     try:
         image_bytes = await image.read()
+        print(f"[/diagnose-photo] farm={farm_id} ear_tag={ear_tag} size={len(image_bytes)}B "
+              f"content_type={image.content_type}")
 
         animal_context = ""
+        animal = None
         if ear_tag:
             animal = await firestore_db.get_animal(farm_id, ear_tag)
             if animal:
@@ -448,13 +451,13 @@ async def diagnose_photo(
                     f"{animal.get('age_months', '?')} oy)"
                 )
 
-        analysis = await analyze_photo_with_claude(image_bytes, animal_context, body_part or "")
+        analysis = await analyze_photo_with_claude(
+            image_bytes, animal_context, body_part or "",
+            content_type=image.content_type or "image/jpeg",
+        )
+        print(f"[/diagnose-photo] analysis={analysis}")
 
-        species = ""
-        if ear_tag:
-            animal = await firestore_db.get_animal(farm_id, ear_tag)
-            species = animal.get("species", "") if animal else ""
-
+        species = animal.get("species", "") if animal else ""
         photo_url = await upload_photo(
             farm_id, ear_tag or "unknown", None, image_bytes,
             category="health",
