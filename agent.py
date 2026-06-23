@@ -15,7 +15,9 @@ from tools import (
     get_animal_full_record_tool,
     add_health_case,
     update_animal_status,
+    update_animal_info,
     log_vaccination,
+    log_bulk_vaccination,
     log_weight,
     log_milk,
     get_animal_history_tool,
@@ -114,6 +116,36 @@ ALL_TOOLS = [
         },
     },
     {
+        "name": "update_animal_info",
+        "description": (
+            "Hayvonning asosiy ma'lumotlarini yangilash: homiladorlik holati/oyi, ism, zot, "
+            "tug'ilgan sana, jins, yosh (oyda). "
+            "Holat (sog'lom/davolanmoqda/kritik) o'zgartirish uchun update_animal_status ishlating. "
+            "Ikkisi bir vaqtda kerak bo'lsa — IKKALA toolni BITTA javobda chaqiring."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ear_tag": {"type": "string"},
+                "pregnancy_status": {
+                    "type": "string",
+                    "enum": ["pregnant", "not_pregnant", "unknown"],
+                    "description": "Homiladorlik holati",
+                },
+                "pregnancy_month": {
+                    "type": "number",
+                    "description": "Homiladorlik oyi (masalan: 3.5)",
+                },
+                "name": {"type": "string", "description": "Hayvon ismi"},
+                "breed": {"type": "string", "description": "Zot"},
+                "dob": {"type": "string", "description": "Tug'ilgan sana YYYY-MM-DD"},
+                "sex": {"type": "string", "enum": ["male", "female"]},
+                "age_months": {"type": "integer", "description": "Yosh oyda"},
+            },
+            "required": ["ear_tag"],
+        },
+    },
+    {
         "name": "log_vaccination",
         "description": "Emlash ma'lumotlarini saqlash",
         "input_schema": {
@@ -125,6 +157,28 @@ ALL_TOOLS = [
                 "next_due": {"type": "string", "description": "Keyingi emlash sanasi YYYY-MM-DD"},
             },
             "required": ["ear_tag", "vaccine_name", "date"],
+        },
+    },
+    {
+        "name": "log_bulk_vaccination",
+        "description": (
+            "Bir vaqtda BIR NECHTA hayvonni emlaymiz — bitta operatsiyada. "
+            "Foydalanuvchi ro'yxatini tasdiqlagan va vaksina ma'lumotlari olgandan KEYIN chaqiring. "
+            "ear_tags — quloq raqamlari ro'yxati."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ear_tags": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Quloq raqamlari ro'yxati",
+                },
+                "vaccine_name": {"type": "string"},
+                "date": {"type": "string", "description": "YYYY-MM-DD"},
+                "next_due": {"type": "string", "description": "Keyingi emlash sanasi YYYY-MM-DD"},
+            },
+            "required": ["ear_tags", "vaccine_name", "date"],
         },
     },
     {
@@ -229,9 +283,10 @@ ALL_TOOLS = [
 # Tools that require farm_id injected server-side
 _TOOLS_WITH_FARM_ID = {
     "get_farm_stats", "get_all_animals", "get_animal", "get_animal_full_record",
-    "add_health_case", "update_animal_status", "log_vaccination", "log_weight",
+    "add_health_case", "update_animal_status", "update_animal_info",
+    "log_vaccination", "log_bulk_vaccination", "log_weight",
     "log_milk", "get_animal_history", "close_case", "add_photo_to_case",
-    "get_active_cases", "record_event",
+    "get_active_cases", "record_event", "search_rag",
 }
 
 # Tools that look up / pin an animal on successful return
@@ -239,8 +294,8 @@ _ANIMAL_LOOKUP_TOOLS = {"get_animal", "get_animal_full_record"}
 
 # Write tools that require explicit user confirmation before execution
 _WRITE_TOOLS_REQUIRE_CONFIRM = {
-    "add_health_case", "update_animal_status", "log_vaccination",
-    "log_weight", "close_case",
+    "add_health_case", "update_animal_status", "update_animal_info",
+    "log_vaccination", "log_bulk_vaccination", "log_weight", "close_case",
 }
 
 TOOL_MAP = {
@@ -250,7 +305,9 @@ TOOL_MAP = {
     "get_animal_full_record": get_animal_full_record_tool,
     "add_health_case": add_health_case,
     "update_animal_status": update_animal_status,
+    "update_animal_info": update_animal_info,
     "log_vaccination": log_vaccination,
+    "log_bulk_vaccination": log_bulk_vaccination,
     "log_weight": log_weight,
     "log_milk": log_milk,
     "get_animal_history": get_animal_history_tool,
@@ -308,6 +365,22 @@ MA'LUMOT SAQLASHDAN OLDIN TASDIQ OLISH (MUHIM):
 MA'LUMOTNI O'QISHDAN OLDIN:
 - Hayvon tarixi, holati yoki kasalliklarini so'rashdan OLDIN — avval get_animal_full_record chaqiring
 - Taxmin qilmang — haqiqiy ma'lumotdan javob bering
+- Yangi kasallik belgilari eshitilganda — AVVAL search_rag chaqiring (species + symptoms_list), natijalarni ko'ring, KEYIN add_health_case chaqiring. Agar search_rag natija topsa — o'xshash holatlarni foydalanuvchiga xabarlang
+
+HOMILADORLIK VA MA'LUMOT YANGILASH:
+- Hayvon homiladorlik holati/oyi, ismi, zoti, jinsi, yoshi o'zgarganda: update_animal_info ishlating
+- Holat (sog'lom/davolanmoqda/kritik) o'zgarganda: update_animal_status ishlating
+- Bir vaqtda ham holat ham homiladorlik (yoki boshqa maydon) o'zgarsa: IKKALA toolni BITTA javobda chaqiring — ikkisi ham tasdiq navbatiga qo'shiladi va birgalikda saqlanadi
+
+OMMAVIY EMLASH (MUHIM):
+- Foydalanuvchi ko'p hayvonni emlash haqida aytsa (masalan: "hammasini emladim", "qo'ylardan boshqasini", "sigirlarni"):
+  1. get_all_animals chaqirib hayvonlar ro'yxatini oling (kerak bo'lsa species filtri bilan)
+  2. Mos tushgan hayvonlar ro'yxatini foydalanuvchiga KO'RSATING: "Bu hayvonlarga qo'llayman: [ism (quloq)], ... — to'g'rimi?"
+  3. Foydalanuvchi ro'yxatni tasdiqlasa — vaksina nomi va sanasini so'rang
+  4. Ma'lumotlar olgach — log_bulk_vaccination ga barcha ear_tags ro'yxatini bering
+  5. Tasdiqlash so'rang: "N ta hayvonga [vaksina] qo'llayman. Tasdiqlaysizmi?"
+  6. Foydalanuvchi "ha" desa — saqlanadi
+- "Boshqa hammasini" iborasi uchun: barcha hayvonlarni oling, keyin istisno turlarini chiqarib tashlang
 
 MUHIM CHEKLOVLAR:
 - Foydalanuvchidan HECH QACHON farm kodi, farm ID, foydalanuvchi ID yoki login ma'lumotlarini so'ramang
@@ -479,6 +552,13 @@ async def run_agent(
         assistant_content = response.content
         write_intercepted = False
 
+        # Count tool_use blocks for logging
+        tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
+        n_queued_this_turn = 0
+        n_executed_this_turn = 0
+        print(f"[Agent] tool_use blocks in this turn: {len(tool_use_blocks)} "
+              f"({[b.name for b in tool_use_blocks]})")
+
         for block in response.content:
             if block.type != "tool_use":
                 continue
@@ -492,12 +572,13 @@ async def run_agent(
                 and "ear_tag" not in inputs
                 and block.name in _TOOLS_WITH_FARM_ID
                 and block.name not in ("get_farm_stats", "get_all_animals", "get_active_cases",
-                                       "log_milk", "record_event", "search_rag")
+                                       "log_milk", "record_event", "search_rag",
+                                       "log_bulk_vaccination")
             ):
                 inputs["ear_tag"] = pinned_animal
                 print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {block.name}")
 
-            # ── Pin animal from write tool inputs (Issue 3) ───────────────────
+            # ── Pin animal from write tool inputs ─────────────────────────────
             tool_ear_tag = inputs.get("ear_tag")
             if tool_ear_tag and tool_ear_tag != pinned_animal:
                 pinned_animal = tool_ear_tag
@@ -518,7 +599,8 @@ async def run_agent(
                 except Exception:
                     current_writes = list(pending_writes)
                 current_writes.append({"name": block.name, "inputs": inputs})
-                print(f"[Agent] Queuing write tool {block.name} — pending_writes now {len(current_writes)}")
+                n_queued_this_turn += 1
+                print(f"[Agent] QUEUED {block.name} — pending_writes total: {len(current_writes)}")
                 try:
                     await firestore_db.update_conversation_state(
                         farm_id, conversation_id,
@@ -543,6 +625,7 @@ async def run_agent(
             else:
                 # Execute normally
                 result = await _execute_tool(block.name, inputs, farm_id)
+                n_executed_this_turn += 1
 
                 # ── Auto-pin animal on successful lookup ─────────────────────
                 if block.name in _ANIMAL_LOOKUP_TOOLS and result.get("found") is not False:
@@ -558,7 +641,8 @@ async def run_agent(
                             print(f"[Agent] WARNING: Could not save pin: {pin_exc}")
 
                 if block.name in (
-                    "add_health_case", "log_vaccination", "log_weight",
+                    "add_health_case", "update_animal_info", "log_vaccination",
+                    "log_bulk_vaccination", "log_weight",
                     "log_milk", "record_event", "close_case",
                 ):
                     data_saved[block.name] = result
@@ -568,6 +652,9 @@ async def run_agent(
                     "tool_use_id": block.id,
                     "content": json.dumps(result, ensure_ascii=False, default=str),
                 })
+
+        print(f"[Agent] Turn summary: {len(tool_use_blocks)} detected, "
+              f"{n_queued_this_turn} queued, {n_executed_this_turn} executed")
 
         messages = messages + [
             {"role": "assistant", "content": assistant_content},

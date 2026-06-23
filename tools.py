@@ -303,6 +303,7 @@ async def search_rag_tool(
     species: str,
     symptoms_list: List[str],
     body_part: Optional[str] = None,
+    farm_id: Optional[str] = None,  # injected by agent but not used (RAG is global)
 ) -> str:
     results = await firestore_db.search_rag(species, symptoms_list, body_part)
     if not results:
@@ -332,7 +333,8 @@ async def close_case(
     if not case:
         return {"found": False, "message": f"Bu holat topilmadi: {case_id}"}
 
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now_iso = now_dt.isoformat()
     await firestore_db.update_case(farm_id, case_id, {
         "closed_at": now_iso,
         "outcome": outcome,
@@ -356,6 +358,33 @@ async def close_case(
         case.get("ai_diagnosis", ""), outcome,
         "Ha" if vet_confirmed else "Yo'q", vet_notes or "",
     ])
+
+    # ── Back-fill matching RAG patterns with real outcome ─────────────────────
+    ai_diagnosis = case.get("ai_diagnosis", "")
+    species = case.get("species", "")
+    if ai_diagnosis and species:
+        try:
+            opened_at = case.get("opened_at", "")
+            recovery_days: Optional[int] = None
+            if opened_at:
+                try:
+                    opened_dt = datetime.fromisoformat(opened_at.replace("Z", "+00:00"))
+                    recovery_days = (now_dt - opened_dt).days
+                except Exception:
+                    pass
+            patterns = await firestore_db.find_rag_patterns_by_diagnosis(ai_diagnosis, species)
+            for p in patterns:
+                if p.get("outcome") is None:  # only update patterns that still have no outcome
+                    await firestore_db.update_rag_pattern(p["pattern_id"], {
+                        "outcome": outcome,
+                        "recovery_days": recovery_days,
+                        "confirmed_by_vet": vet_confirmed,
+                    })
+            if patterns:
+                print(f"[close_case] Updated {len(patterns)} RAG pattern(s) with outcome={outcome!r}")
+        except Exception as rag_exc:
+            print(f"[close_case] WARNING: RAG pattern update failed: {rag_exc}")
+
     return {"success": True, "case_id": case_id, "outcome": outcome}
 
 
@@ -397,7 +426,100 @@ async def get_active_cases_tool(farm_id: str) -> List[Dict]:
     return cases
 
 
-# ─── 14. record_event ────────────────────────────────────────────
+# ─── 14. update_animal_info ──────────────────────────────────────
+
+async def update_animal_info(
+    farm_id: str,
+    ear_tag: str,
+    pregnancy_status: Optional[str] = None,
+    pregnancy_month: Optional[float] = None,
+    name: Optional[str] = None,
+    breed: Optional[str] = None,
+    dob: Optional[str] = None,
+    sex: Optional[str] = None,
+    age_months: Optional[int] = None,
+) -> Dict:
+    """Update non-status fields on an animal: pregnancy, name, breed, dob, sex, age."""
+    animal = await firestore_db.get_animal(farm_id, ear_tag)
+    if not animal:
+        return {"found": False, "message": f"Hayvon topilmadi: {ear_tag}"}
+
+    updates: Dict[str, Any] = {}
+    changes: List[str] = []
+    if pregnancy_status is not None:
+        updates["pregnancy_status"] = pregnancy_status
+        changes.append(f"homiladorlik holati: {pregnancy_status}")
+    if pregnancy_month is not None:
+        updates["pregnancy_month"] = pregnancy_month
+        changes.append(f"homiladorlik oyi: {pregnancy_month}")
+    if name is not None:
+        updates["name"] = name
+        changes.append(f"ism: {name}")
+    if breed is not None:
+        updates["breed"] = breed
+        changes.append(f"zot: {breed}")
+    if dob is not None:
+        updates["dob"] = dob
+        changes.append(f"tug'ilgan sana: {dob}")
+    if sex is not None:
+        updates["sex"] = sex
+        changes.append(f"jins: {sex}")
+    if age_months is not None:
+        updates["age_months"] = age_months
+        changes.append(f"yosh: {age_months} oy")
+
+    if not updates:
+        return {"success": False, "message": "Hech qanday maydon ko'rsatilmadi"}
+
+    await firestore_db.update_animal(farm_id, ear_tag, updates)
+    await firestore_db.create_event(farm_id, {
+        "event_type": "animal_info_updated",
+        "ear_tag": ear_tag,
+        "data": updates,
+        "ai_summary": f"{animal.get('name', ear_tag)}: {', '.join(changes)}",
+        "recorded_by": "ai",
+    })
+    return {
+        "success": True,
+        "ear_tag": ear_tag,
+        "updated_fields": list(updates.keys()),
+    }
+
+
+# ─── 15. log_bulk_vaccination ─────────────────────────────────────
+
+async def log_bulk_vaccination(
+    farm_id: str,
+    ear_tags: List[str],
+    vaccine_name: str,
+    date: str,
+    next_due: Optional[str] = None,
+) -> Dict:
+    """Vaccinate multiple animals in one operation."""
+    vaccinated: List[str] = []
+    failed: List[str] = []
+    for ear_tag in ear_tags:
+        result = await log_vaccination(
+            farm_id=farm_id,
+            ear_tag=ear_tag,
+            vaccine_name=vaccine_name,
+            date=date,
+            next_due=next_due,
+        )
+        if result.get("success"):
+            vaccinated.append(ear_tag)
+        else:
+            failed.append(ear_tag)
+    return {
+        "success": len(vaccinated) > 0,
+        "vaccinated_count": len(vaccinated),
+        "vaccinated": vaccinated,
+        "failed_count": len(failed),
+        "failed": failed,
+    }
+
+
+# ─── 16. record_event ────────────────────────────────────────────
 
 async def record_event_tool(
     farm_id: str,

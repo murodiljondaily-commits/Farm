@@ -388,6 +388,28 @@ async def save_rag_pattern(pattern: Dict) -> None:
     _run(_q)
 
 
+async def find_rag_patterns_by_diagnosis(diagnosis: str, species: str) -> List[Dict]:
+    """Return rag_knowledge docs matching diagnosis + species (for close_case update)."""
+    def _q():
+        docs = (
+            get_db().collection("rag_knowledge")
+            .where("diagnosis", "==", diagnosis)
+            .where("species", "==", species)
+            .limit(10)
+            .stream()
+        )
+        return [dict(d.to_dict(), pattern_id=d.id) for d in docs]
+    return _run(_q)
+
+
+async def update_rag_pattern(pattern_id: str, data: Dict) -> None:
+    """Merge outcome/recovery data into an existing rag_knowledge document."""
+    data = {**data, "updated_at": datetime.now(timezone.utc).isoformat()}
+    def _q():
+        get_db().collection("rag_knowledge").document(pattern_id).set(data, merge=True)
+    _run(_q)
+
+
 async def search_rag(
     species: str, symptoms_list: List[str], body_part: Optional[str] = None
 ) -> List[Dict]:
