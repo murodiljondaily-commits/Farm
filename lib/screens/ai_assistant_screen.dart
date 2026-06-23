@@ -251,6 +251,8 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
           debugPrint('[AI] Synced status update → $earTag: $newStatus');
         }
       }
+      // Pull fresh Firestore state into SQLite for any AI write
+      await VetAiService.syncAnimalsFromBackend(farmId);
     } catch (e) {
       debugPrint('[AI] _applyDataSavedToSQLite error: $e');
     }

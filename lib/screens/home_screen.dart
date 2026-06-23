@@ -27,6 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _youngCount = 0;
   bool _loading = true;
   bool _loadStarted = false;
+  int _seenAiWriteCount = 0;
 
   @override
   void didChangeDependencies() {
@@ -75,6 +76,13 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<FarmProvider>();
+
+    if (provider.aiWriteCount > _seenAiWriteCount) {
+      _seenAiWriteCount = provider.aiWriteCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
 
     if (provider.loading) {
       return const Scaffold(

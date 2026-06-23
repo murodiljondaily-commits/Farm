@@ -260,14 +260,27 @@ class _VaccinationScreenState extends State<VaccinationScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text("Emlash yozuvi saqlandi"),
+                                content: Text("Emlash yozuvi saqlandi",
+                                    style: TextStyle(color: Colors.white)),
                                 duration: Duration(seconds: 3),
+                                backgroundColor: Color(0xFF2E7D32),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
                           }
-                        } catch (_) {
+                        } catch (e) {
                           if (ctx.mounted) setSheet(() => saving = false);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text("Xatolik: $e",
+                                    style: const TextStyle(color: Colors.white)),
+                                duration: const Duration(seconds: 4),
+                                backgroundColor: kError,
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
                         }
                       },
                       child: saving

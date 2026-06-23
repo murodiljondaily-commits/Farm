@@ -18,6 +18,7 @@ class FarmProvider extends ChangeNotifier {
   String? _error;
   List<Farm> _availableFarms = [];
   int? _identityId;
+  int _aiWriteCount = 0;
 
   String? get farmId => _farmId;
   String? get userId => _userId;
@@ -33,6 +34,7 @@ class FarmProvider extends ChangeNotifier {
   bool get needsFarmPicker => _googleSignedIn && _userId == null && _availableFarms.isNotEmpty;
   bool get isOwner => _userRole == 'owner' || _userRole == 'coowner';
   bool get isVet => _userRole == 'vet';
+  int get aiWriteCount => _aiWriteCount;
 
   Future<void> init() async {
     debugPrint('[FarmProvider] init() started');
@@ -116,7 +118,10 @@ class FarmProvider extends ChangeNotifier {
   Future<void> touch() => AuthService.touch();
 
   /// Signal all listeners (e.g. animals_screen) to reload after an AI write.
-  void notifyDirty() => notifyListeners();
+  void notifyDirty() {
+    _aiWriteCount++;
+    notifyListeners();
+  }
 
   Future<void> logout() async {
     await GoogleAuthService.signOut();

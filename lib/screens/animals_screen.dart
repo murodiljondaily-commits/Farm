@@ -22,6 +22,7 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
   List<Animal> _animals = [];
   String _search = '';
   bool _loading = true;
+  int _seenAiWriteCount = 0;
 
   @override
   void initState() {
@@ -52,6 +53,14 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final provider = context.watch<FarmProvider>();
+    if (provider.aiWriteCount > _seenAiWriteCount) {
+      _seenAiWriteCount = provider.aiWriteCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
+
     final l10n = AppLocalizations.of(context);
     final sp = widget.species;
     final hasFilter = sp != null;

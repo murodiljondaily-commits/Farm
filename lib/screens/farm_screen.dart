@@ -184,7 +184,7 @@ class FarmScreen extends StatelessWidget {
                           title: l10n.farmSheets,
                           subtitle: l10n.farmSheetsSubtitle,
                           trailingIcon: Icons.open_in_new,
-                          onTap: () => _openUrl(farm.sheetUrl!),
+                          onTap: () => _openUrl(farm.sheetUrl!, context),
                         ),
                       ] else ...[
                         const _CardDivider(),
@@ -356,7 +356,7 @@ class FarmScreen extends StatelessWidget {
               content: const Text('Google Sheet muvaffaqiyatli yaratildi'),
               action: SnackBarAction(
                 label: 'Ochish',
-                onPressed: () => _openUrl(sheetUrl),
+                onPressed: () => _openUrl(sheetUrl, context),
               ),
               duration: const Duration(seconds: 4),
               backgroundColor: const Color(0xFF388E3C),
@@ -381,10 +381,33 @@ class FarmScreen extends StatelessWidget {
     }
   }
 
-  Future<void> _openUrl(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+  Future<void> _openUrl(String url, BuildContext context) async {
+    final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
+    try {
+      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!launched && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Havola ochib bo'lmadi",
+                style: TextStyle(color: Colors.white)),
+            duration: Duration(seconds: 3),
+            backgroundColor: Color(0xFFC23B2A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Xatolik: $e",
+                style: const TextStyle(color: Colors.white)),
+            duration: const Duration(seconds: 3),
+            backgroundColor: const Color(0xFFC23B2A),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

@@ -707,6 +707,34 @@ Return ONLY valid JSON:
     }
   }
 
+  /// Pull all Firestore animals for this farm and upsert them into local SQLite.
+  static Future<void> syncAnimalsFromBackend(String farmId) async {
+    try {
+      final resp = await http
+          .get(Uri.parse('$_backendUrl/farm/$farmId/animals'))
+          .timeout(const Duration(seconds: 20));
+      if (resp.statusCode != 200) {
+        debugPrint('[VetAI] syncAnimalsFromBackend: HTTP ${resp.statusCode}');
+        return;
+      }
+      final json = jsonDecode(utf8.decode(resp.bodyBytes));
+      final List<dynamic> rawList = json is List
+          ? json
+          : (json['animals'] as List<dynamic>? ?? []);
+      int count = 0;
+      for (final raw in rawList) {
+        final map = Map<String, dynamic>.from(raw as Map);
+        map['farm_id'] = farmId;
+        final animal = Animal.fromMap(map);
+        await DbService.saveAnimal(animal);
+        count++;
+      }
+      debugPrint('[VetAI] syncAnimalsFromBackend: upserted $count animals');
+    } catch (e) {
+      debugPrint('[VetAI] syncAnimalsFromBackend error: $e');
+    }
+  }
+
   static Future<
       ({
         VetResponse response,
