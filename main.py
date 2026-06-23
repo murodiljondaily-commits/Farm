@@ -402,6 +402,81 @@ async def photo_upload(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.post("/transcribe")
+async def transcribe_audio(audio: UploadFile = File(...)):
+    """Proxy STT request to Muxlisa so Flutter never holds the API key."""
+    muxlisa_key = os.environ.get("MUXLISA_API_KEY", "")
+    if not muxlisa_key:
+        raise HTTPException(status_code=503, detail="STT service not configured")
+    try:
+        import httpx
+        audio_bytes = await audio.read()
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://service.muxlisa.uz/api/v2/stt",
+                headers={"x-api-key": muxlisa_key},
+                files={"audio": (audio.filename or "audio.wav", audio_bytes, audio.content_type or "audio/wav")},
+            )
+        print(f"[/transcribe] Muxlisa status={resp.status_code}")
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail=f"STT error {resp.status_code}: {resp.text[:200]}")
+        return resp.json()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[/transcribe] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/diagnose-photo")
+async def diagnose_photo(
+    farm_id: str = Form(...),
+    ear_tag: Optional[str] = Form(None),
+    body_part: Optional[str] = Form(None),
+    image: UploadFile = File(...),
+):
+    """Vision diagnosis endpoint — Flutter uploads image, backend calls Anthropic."""
+    try:
+        image_bytes = await image.read()
+
+        animal_context = ""
+        if ear_tag:
+            animal = await firestore_db.get_animal(farm_id, ear_tag)
+            if animal:
+                animal_context = (
+                    f"{animal.get('name', '?')} ({animal.get('species', '?')}, "
+                    f"{animal.get('age_months', '?')} oy)"
+                )
+
+        analysis = await analyze_photo_with_claude(image_bytes, animal_context, body_part or "")
+
+        species = ""
+        if ear_tag:
+            animal = await firestore_db.get_animal(farm_id, ear_tag)
+            species = animal.get("species", "") if animal else ""
+
+        photo_url = await upload_photo(
+            farm_id, ear_tag or "unknown", None, image_bytes,
+            category="health",
+            species=species,
+            condition=analysis.get("probable_diagnosis", "")[:30],
+        )
+
+        return {
+            "assessment": analysis.get("probable_diagnosis", ""),
+            "visual_findings": analysis.get("visual_findings", ""),
+            "first_aid": analysis.get("immediate_actions", []),
+            "confidence": analysis.get("confidence", 0),
+            "severity": analysis.get("severity", "low"),
+            "photo_url": photo_url,
+            "escalate_to_vet": False,
+            "follow_up_in_days": 2,
+        }
+    except Exception as exc:
+        print(f"[/diagnose-photo] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # ─── Farm endpoints ───────────────────────────────────────────────
 
 @app.get("/farm/{farm_id}/context")
