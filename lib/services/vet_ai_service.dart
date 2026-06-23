@@ -1,14 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 import 'package:sqflite/sqflite.dart' show getDatabasesPath;
-import 'package:uuid/uuid.dart';
 
 import 'db_service.dart';
 import '../models/models.dart';
@@ -109,11 +106,6 @@ bool detectEmergencyKeywords(String text) {
 // ── Service ───────────────────────────────────────────────────────────────────
 
 class VetAiService {
-  static String get _anthropicKey =>
-      dotenv.env['ANTHROPIC_API_KEY'] ?? '';
-  static String get _muxlisaKey =>
-      dotenv.env['MUXLISA_API_KEY'] ?? '';
-
   static AudioRecorder? _recorder;
 
   // ── 1. Recording ────────────────────────────────────────────────────────────
@@ -168,12 +160,12 @@ class VetAiService {
       }
       final request = http.MultipartRequest(
         'POST',
-        Uri.parse('https://service.muxlisa.uz/api/v2/stt'),
+        Uri.parse('$_backendUrl/transcribe'),
       );
-      request.headers['x-api-key'] = _muxlisaKey;
       request.files
           .add(await http.MultipartFile.fromPath('audio', audioPath));
-      final streamed = await request.send();
+      final streamed = await request.send()
+          .timeout(const Duration(seconds: 30));
       final body = await streamed.stream.bytesToString();
       debugPrint('[VetAI] STT (${streamed.statusCode}): $body');
       if (streamed.statusCode != 200) {
@@ -187,63 +179,6 @@ class VetAiService {
     } catch (e) {
       debugPrint('[VetAI] transcribeAudio: $e');
       rethrow;
-    }
-  }
-
-  // ── 3. Intent classification + entity extraction ─────────────────────────────
-
-  static const _classifySystemPrompt = '''
-You are an AI assistant for AgriVet, a livestock farm management app in Uzbekistan.
-Classify the user input into one of these intents:
-- INJECT: adding new data (health case, symptom, vaccination, weight, milk, birth)
-- QUERY: asking for information about an animal or farm
-- UPDATE: updating existing record (animal recovered, case closed, weight updated)
-- EMERGENCY: life-threatening situation (bleeding, seizures, can't stand, not breathing)
-- REPORT: daily farm report (milk production, general farm status)
-- GENERAL: general vet knowledge question, no DB action needed
-
-Also extract entities:
-- ear_tag or animal_name
-- action_type (health_case/vaccination/weight/milk/birth/status_update)
-- symptoms (list)
-- body_part (if mentioned)
-- severity (low/medium/high/emergency)
-- measurements (weight in kg, milk in liters, vaccine_name, timing, etc.)
-- language (uz or ru — detect from input)
-
-Return ONLY valid JSON:
-{
-  "intent": "INJECT",
-  "ear_tag": "US44506",
-  "animal_name": null,
-  "action_type": "health_case",
-  "symptoms": ["swollen right back leg", "wound fluid", "not bearing weight"],
-  "body_part": "right_back_leg",
-  "severity": "high",
-  "measurements": {},
-  "language": "uz"
-}''';
-
-  static Future<VetIntent> classifyIntent(String text) async {
-    // Fast-path: local emergency keyword detection
-    if (detectEmergencyKeywords(text)) {
-      return VetIntent(
-        intent: 'EMERGENCY',
-        symptoms: [text],
-        severity: 'emergency',
-        language: text.contains(RegExp(r'[а-яёА-ЯЁ]')) ? 'ru' : 'uz',
-      );
-    }
-    try {
-      final raw = await _claudeCall(
-        systemPrompt: _classifySystemPrompt,
-        userMessage: text,
-      );
-      return VetIntent.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
-    } catch (e) {
-      debugPrint('[VetAI] classifyIntent: $e');
-      return VetIntent(intent: 'GENERAL', language: 'uz');
     }
   }
 
@@ -338,72 +273,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     }
   }
 
-  // ── 6. Main GPT-4o vet assessment ────────────────────────────────────────────
-
-  static Future<VetResponse> getAssessment({
-    required String userInput,
-    required VetIntent intent,
-    required String animalContext,
-    required String ragContext,
-    bool retryComplex = false,
-  }) async {
-    try {
-      final systemPrompt = """
-Siz AgriVet ilovasidagi "Sonya" — Farg'ona vodiysidan 15 yillik tajribali veterinar.
-Qisqa, aniq, ishonchli javob bering:
-1. Asosiy muammo
-2. Ehtimoliy sabab
-3. Darhol choralar (birinchi yordam)
-4. Ishonch darajasi: X%
-
-Hech qachon "men aniqlay olmayman" demang. Hech qachon "veterinarga murojaat qiling" deb tugamang. Amaliy ko'rsatmalar bering.
-
-Javob tilini foydalanuvchi tili bilan moslashtiring (uz yoki ru).${retryComplex ? '\n\nThink step by step, this is a complex case.' : ''}
-
-RAG ma'lumotlari (o'xshash holatlar):
-$ragContext
-
-Hayvon ma'lumotlari:
-$animalContext
-
-Return ONLY valid JSON:
-{
-  "assessment": "main vet response text in uz/ru",
-  "first_aid": ["step 1", "step 2", "step 3"],
-  "confidence": 85,
-  "escalate_to_vet": false,
-  "follow_up_in_days": 2
-}""";
-
-      final raw = await _claudeCall(
-        systemPrompt: systemPrompt,
-        userMessage: userInput,
-      );
-      final resp = VetResponse.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
-
-      if (resp.confidence < 60 && !retryComplex) {
-        return getAssessment(
-          userInput: userInput,
-          intent: intent,
-          animalContext: animalContext,
-          ragContext: ragContext,
-          retryComplex: true,
-        );
-      }
-      return resp;
-    } catch (e) {
-      debugPrint('[VetAI] getAssessment: $e');
-      return VetResponse(
-        assessment: intent.language == 'ru'
-            ? 'Ошибка обработки запроса. Попробуйте снова.'
-            : "Xatolik yuz berdi. Qayta urinib ko'ring.",
-        confidence: 0,
-      );
-    }
-  }
-
-  // ── 7. Photo diagnosis (GPT-4o vision) ──────────────────────────────────────
+  // ── 7. Photo diagnosis ──────────────────────────────────────────────────────
 
   static Future<({VetResponse response, String? photoUrl})>
       diagnoseFromPhoto({
@@ -414,67 +284,42 @@ Return ONLY valid JSON:
     required String animalContext,
     required String ragContext,
   }) async {
-    String? photoUrl;
     try {
-      final caseId = const Uuid().v4();
-      final tag = earTag ?? 'unknown';
-      final ref = FirebaseStorage.instance.ref(
-        'farms/$farmId/animals/$tag/health/${caseId}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      final file = File(imagePath);
+      if (!file.existsSync()) throw Exception('Image not found: $imagePath');
+
+      final request = http.MultipartRequest(
+        'POST',
+        Uri.parse('$_backendUrl/diagnose-photo'),
       );
-      await ref.putFile(File(imagePath));
-      photoUrl = await ref.getDownloadURL();
-      debugPrint('[VetAI] photo uploaded: $photoUrl');
-    } catch (e) {
-      debugPrint('[VetAI] Firebase Storage upload failed: $e');
-    }
-
-    try {
-      final systemContent =
-          "You are an expert vet. Examine the image and give a concise assessment in the user's language (uz or ru).\n\n"
-          "Animal data:\n$animalContext\n"
-          "Body part: ${bodyPart ?? 'not specified'}\n\n"
-          "Similar cases from RAG:\n$ragContext\n\n"
-          "Return ONLY valid JSON:\n"
-          '{"assessment":"...","first_aid":["..."],"confidence":80,"escalate_to_vet":false,'
-          '"follow_up_in_days":3,"visual_findings":"what AI sees in the image"}';
-
-      final imageBytes = await File(imagePath).readAsBytes();
-      final base64Data = base64Encode(imageBytes);
-
-      final raw = await _claudeCall(
-        systemPrompt: systemContent,
-        userMessage: '',
-        customMessages: [
-          {
-            'role': 'user',
-            'content': [
-              {
-                'type': 'image',
-                'source': {
-                  'type': 'base64',
-                  'media_type': 'image/jpeg',
-                  'data': base64Data,
-                },
-              },
-              {
-                'type': 'text',
-                'text': 'Analyze this veterinary image and return the JSON assessment.',
-              },
-            ],
-          }
-        ],
+      request.fields['farm_id'] = farmId;
+      if (earTag != null) request.fields['ear_tag'] = earTag;
+      if (bodyPart != null) request.fields['body_part'] = bodyPart;
+      request.files.add(
+        await http.MultipartFile.fromPath('image', imagePath),
       );
-      final resp = VetResponse.fromJson(
-          jsonDecode(raw) as Map<String, dynamic>);
-      return (response: resp, photoUrl: photoUrl);
+
+      final streamed = await request.send()
+          .timeout(const Duration(seconds: 45));
+      final body = await streamed.stream.bytesToString();
+      debugPrint('[VetAI] diagnose-photo (${streamed.statusCode}): $body');
+
+      if (streamed.statusCode != 200) {
+        throw Exception('diagnose-photo HTTP ${streamed.statusCode}: $body');
+      }
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      return (
+        response: VetResponse.fromJson(json),
+        photoUrl: json['photo_url'] as String?,
+      );
     } catch (e) {
       debugPrint('[VetAI] diagnoseFromPhoto: $e');
       return (
-        response: VetResponse(
+        response: const VetResponse(
           assessment: "Rasm tahlilida xatolik. Qayta urinib ko'ring.",
           confidence: 0,
         ),
-        photoUrl: photoUrl,
+        photoUrl: null,
       );
     }
   }
@@ -893,58 +738,6 @@ Return ONLY valid JSON:
     } catch (e) {
       debugPrint('[VetAI] deleteConversation error: $e');
     }
-  }
-
-  // ── Internal: Anthropic Claude call ─────────────────────────────────────────
-
-  static Future<String> _claudeCall({
-    required String systemPrompt,
-    required String userMessage,
-    List<Map<String, dynamic>>? customMessages,
-  }) async {
-    final messages = customMessages ??
-        [
-          if (userMessage.isNotEmpty)
-            {'role': 'user', 'content': userMessage},
-        ];
-
-    final body = <String, dynamic>{
-      'model': 'claude-sonnet-4-6',
-      'max_tokens': 1024,
-      if (systemPrompt.isNotEmpty) 'system': systemPrompt,
-      'messages': messages,
-    };
-
-    final resp = await http
-        .post(
-          Uri.parse('https://api.anthropic.com/v1/messages'),
-          headers: {
-            'x-api-key': _anthropicKey,
-            'anthropic-version': '2023-06-01',
-            'Content-Type': 'application/json',
-          },
-          body: jsonEncode(body),
-        )
-        .timeout(const Duration(seconds: 60));
-
-    debugPrint('[VetAI] Claude status: ${resp.statusCode}');
-    debugPrint('[VetAI] Claude body: ${resp.body}');
-    if (resp.statusCode != 200) {
-      throw Exception(
-          'Anthropic API ${resp.statusCode}: ${utf8.decode(resp.bodyBytes)}');
-    }
-    final json =
-        jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
-    final content = json['content'] as List?;
-    if (content == null || content.isEmpty) return '';
-    for (final block in content) {
-      final b = block as Map<String, dynamic>;
-      if (b['type'] == 'text') {
-        final raw = b['text'] as String? ?? '';
-        return raw.replaceAll('```json', '').replaceAll('```', '').trim();
-      }
-    }
-    return '';
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
