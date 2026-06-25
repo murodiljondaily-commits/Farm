@@ -4,10 +4,18 @@ import json
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
+import httpx
 from anthropic import AsyncAnthropic
 from firebase_admin import storage as fb_storage
 
-client = AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", ""))
+# Use same httpx config as agent.py — http2=False avoids Railway connection errors
+client = AsyncAnthropic(
+    api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
+    http_client=httpx.AsyncClient(
+        http2=False,
+        timeout=httpx.Timeout(connect=30.0, read=120.0, write=30.0, pool=30.0),
+    ),
+)
 
 
 async def upload_photo(
