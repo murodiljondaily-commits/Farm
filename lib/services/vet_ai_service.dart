@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' as http_parser;
 import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 import 'package:sqflite/sqflite.dart' show getDatabasesPath;
@@ -295,17 +296,33 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
       request.fields['farm_id'] = farmId;
       if (earTag != null) request.fields['ear_tag'] = earTag;
       if (bodyPart != null) request.fields['body_part'] = bodyPart;
-      request.files.add(
-        await http.MultipartFile.fromPath('image', imagePath),
-      );
+      // Explicitly set image/jpeg so the backend always gets a known media type
+      request.files.add(await http.MultipartFile.fromPath(
+        'image',
+        imagePath,
+        contentType: http_parser.MediaType('image', 'jpeg'),
+      ));
 
-      final streamed = await request.send()
-          .timeout(const Duration(seconds: 45));
+      final streamed =
+          await request.send().timeout(const Duration(seconds: 60));
       final body = await streamed.stream.bytesToString();
-      debugPrint('[VetAI] diagnose-photo (${streamed.statusCode}): $body');
+      debugPrint(
+          '[VetAI] diagnose-photo (${streamed.statusCode}): ${body.substring(0, body.length.clamp(0, 300))}');
 
       if (streamed.statusCode != 200) {
-        throw Exception('diagnose-photo HTTP ${streamed.statusCode}: $body');
+        // Surface the actual backend error so it shows in the chat
+        String detail = body;
+        try {
+          detail = (jsonDecode(body) as Map)['detail']?.toString() ?? body;
+        } catch (_) {}
+        return (
+          response: VetResponse(
+            assessment:
+                "Rasm tahlilida xatolik: $detail",
+            confidence: 0,
+          ),
+          photoUrl: null,
+        );
       }
       final json = jsonDecode(body) as Map<String, dynamic>;
       return (
@@ -315,8 +332,8 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     } catch (e) {
       debugPrint('[VetAI] diagnoseFromPhoto: $e');
       return (
-        response: const VetResponse(
-          assessment: "Rasm tahlilida xatolik. Qayta urinib ko'ring.",
+        response: VetResponse(
+          assessment: "Rasm tahlilida xatolik: $e",
           confidence: 0,
         ),
         photoUrl: null,
@@ -580,6 +597,37 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     }
   }
 
+  /// Close a health case from the UI with outcome data. Updates Firestore via backend.
+  static Future<bool> closeCaseViaApi({
+    required String farmId,
+    required String caseId,
+    required String outcome,
+    int? recoveryDays,
+    bool vetConfirmed = false,
+    String? vetNotes,
+  }) async {
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_backendUrl/farm/$farmId/close-case'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'case_id': caseId,
+              'outcome': outcome,
+              'recovery_days': recoveryDays,
+              'vet_confirmed': vetConfirmed,
+              'vet_notes': vetNotes,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+      debugPrint('[VetAI] closeCaseViaApi: HTTP ${resp.statusCode} $caseId');
+      return resp.statusCode == 200;
+    } catch (e) {
+      debugPrint('[VetAI] closeCaseViaApi error: $e');
+      return false;
+    }
+  }
+
   static Future<
       ({
         VetResponse response,
@@ -665,7 +713,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
   // ── Farm registry (cross-device join) ───────────────────────────────────────
 
   /// Save the newly created farm to Firestore so other devices can find it by code.
-  static Future<void> saveFarmToBackend(Farm farm) async {
+  static Future<bool> saveFarmToBackend(Farm farm) async {
     try {
       final resp = await http
           .post(
@@ -683,8 +731,10 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
           )
           .timeout(const Duration(seconds: 20));
       debugPrint('[VetAI] saveFarmToBackend status=${resp.statusCode}');
+      return resp.statusCode == 200 || resp.statusCode == 201;
     } catch (e) {
       debugPrint('[VetAI] saveFarmToBackend error: $e');
+      return false;
     }
   }
 

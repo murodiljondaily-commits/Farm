@@ -7,6 +7,7 @@ import '../services/db_service.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/capsule_bar.dart';
+import '../services/vet_ai_service.dart';
 
 class HealthScreen extends StatefulWidget {
   final String? preselectedEarTag;
@@ -108,13 +109,137 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 
   Future<void> _closeCase(HealthCase c) async {
-    final farmId = context.read<FarmProvider>().farmId!;
-    await DbService.updateCaseStatus(c.caseId, 'closed');
-    final remaining = await DbService.getCases(farmId, earTag: c.earTag, status: 'open');
-    if (remaining.isEmpty) {
-      await DbService.updateAnimalStatus(farmId, c.earTag, 'soglom');
-    }
-    _load();
+    String outcome = 'tuzaldi';
+    int? recoveryDays;
+    bool vetConfirmed = false;
+    bool saving = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final recoveryCtrl = TextEditingController(
+              text: recoveryDays != null ? '$recoveryDays' : '');
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20, right: 20, top: 24,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 24,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Kasallik holatini yopish',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text('${c.earTag} — ${c.diagnosis ?? c.symptomsFarmer ?? ''}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                const SizedBox(height: 20),
+                const Text('Natija', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                SegmentedButton<String>(
+                  segments: const [
+                    ButtonSegment(value: 'tuzaldi', label: Text('Tuzaldi')),
+                    ButtonSegment(value: 'yomonlashdi', label: Text('Yomonlashdi')),
+                    ButtonSegment(value: 'oldi', label: Text("O'ldi")),
+                  ],
+                  selected: {outcome},
+                  onSelectionChanged: (s) => setSheet(() => outcome = s.first),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: recoveryCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Tiklanish kunlari (ixtiyoriy)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onChanged: (v) {
+                    final n = int.tryParse(v);
+                    setSheet(() => recoveryDays = n);
+                  },
+                ),
+                const SizedBox(height: 12),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Veterinar tasdiqladi'),
+                  value: vetConfirmed,
+                  onChanged: (v) => setSheet(() => vetConfirmed = v),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: saving
+                        ? null
+                        : () async {
+                            setSheet(() => saving = true);
+                            final farmId = context.read<FarmProvider>().farmId!;
+                            try {
+                              await DbService.closeCaseWithOutcome(
+                                c.caseId, outcome,
+                                recoveryDays: recoveryDays,
+                                vetConfirmed: vetConfirmed,
+                              );
+                              final remaining = await DbService.getCases(
+                                  farmId, earTag: c.earTag, status: 'open');
+                              if (remaining.isEmpty) {
+                                await DbService.updateAnimalStatus(
+                                    farmId, c.earTag, 'soglom');
+                              }
+                              VetAiService.closeCaseViaApi(
+                                farmId: farmId,
+                                caseId: c.caseId,
+                                outcome: outcome,
+                                recoveryDays: recoveryDays,
+                                vetConfirmed: vetConfirmed,
+                              );
+                              if (ctx.mounted) Navigator.pop(ctx);
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                  content: const Text('Holat yopildi',
+                                      style: TextStyle(color: Colors.white)),
+                                  backgroundColor: const Color(0xFF2E7D32),
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 3),
+                                ));
+                                _load();
+                              }
+                            } catch (e) {
+                              setSheet(() => saving = false);
+                              if (ctx.mounted) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                                  content: Text('Xatolik: $e',
+                                      style: const TextStyle(color: Colors.white)),
+                                  backgroundColor: kError,
+                                  behavior: SnackBarBehavior.floating,
+                                ));
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF2E7D32),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14)),
+                    child: saving
+                        ? const SizedBox(
+                            height: 20, width: 20,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Text('Saqlash va yopish',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _confirmAndDelete(HealthCase c) async {

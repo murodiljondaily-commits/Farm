@@ -1,5 +1,3 @@
-import 'dart:async' show unawaited;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -85,8 +83,18 @@ class _SetupScreenState extends State<SetupScreen> {
       debugPrint('[Setup] step 2 done');
 
       // Persist farm to Firestore so other devices can find it by join code.
-      // Non-blocking: local setup continues even if this fails.
-      unawaited(VetAiService.saveFarmToBackend(farm));
+      final synced = await VetAiService.saveFarmToBackend(farm);
+      if (!synced && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+            "Ferma yaratildi. Boshqa qurilmalardan qo'shilish uchun internet kerak.",
+            style: TextStyle(color: Colors.white),
+          ),
+          backgroundColor: Color(0xFFE65100),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 5),
+        ));
+      }
 
       debugPrint('[Setup] step 3 — AuthService.saveSessionPartial()');
       await AuthService.saveSessionPartial(

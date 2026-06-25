@@ -467,6 +467,25 @@ class DbService {
         where: 'case_id = ?', whereArgs: [caseId]);
   }
 
+  static Future<void> closeCaseWithOutcome(
+    String caseId,
+    String outcome, {
+    int? recoveryDays,
+    bool vetConfirmed = false,
+  }) async {
+    final database = await db;
+    await database.update(
+      'cases',
+      {
+        'status': 'closed',
+        'outcome': outcome,
+        'recovery_days': recoveryDays,
+      },
+      where: 'case_id = ?',
+      whereArgs: [caseId],
+    );
+  }
+
   /// Deletes a case record and auto-reverts animal to 'soglom' if no open cases remain.
   static Future<void> deleteHealthCase(
       String caseId, String farmId, String earTag) async {

@@ -26,6 +26,7 @@ dependencies:
 
   # HTTP for API calls when backend is running
   http: ^1.2.1
+  http_parser: ^4.0.0
 
   # Shared prefs for session/PIN
   shared_preferences: ^2.2.3
