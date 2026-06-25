@@ -17,6 +17,7 @@ from sheets_sync import sync_to_sheets_background, create_farm_sheet
 from context_builder import build_farm_context
 
 app = FastAPI(title="AgriVet AI Backend", version="1.0")
+print("=== AgriVet backend starting — commit bf15e17 (Item1+Item2) ===")
 
 app.add_middleware(
     CORSMiddleware,
