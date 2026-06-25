@@ -35,6 +35,31 @@ import 'screens/ai_assistant_screen.dart';
 import 'screens/archive_screen.dart';
 import 'screens/farm_pin_gate.dart';
 
+Page<void> _smoothPage(Widget child, GoRouterState state) =>
+    CustomTransitionPage<void>(
+      key: state.pageKey,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 220),
+      reverseTransitionDuration: const Duration(milliseconds: 180),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(
+            opacity: CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            ),
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.03),
+                end: Offset.zero,
+              ).animate(CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+              )),
+              child: child,
+            ),
+          ),
+    );
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -131,70 +156,75 @@ class _AgriVetAppState extends State<AgriVetApp> {
         return null;
       },
       routes: [
-        GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
-        GoRoute(path: '/google-signin', builder: (_, __) => const GoogleSignInScreen()),
-        GoRoute(path: '/phone-auth', builder: (_, __) => const PhoneAuthScreen()),
+        GoRoute(path: '/', pageBuilder: (_, state) => _smoothPage(const HomeScreen(), state)),
+        GoRoute(path: '/google-signin', pageBuilder: (_, state) => _smoothPage(const GoogleSignInScreen(), state)),
+        GoRoute(path: '/phone-auth', pageBuilder: (_, state) => _smoothPage(const PhoneAuthScreen(), state)),
         GoRoute(
           path: '/otp',
-          builder: (_, state) {
+          pageBuilder: (_, state) {
             final extra = state.extra as Map<String, dynamic>;
-            return OtpScreen(
-              phone: extra['phone'] as String,
-              verificationId: extra['verificationId'] as String,
-              resendToken: extra['resendToken'] as int?,
+            return _smoothPage(
+              OtpScreen(
+                phone: extra['phone'] as String,
+                verificationId: extra['verificationId'] as String,
+                resendToken: extra['resendToken'] as int?,
+              ),
+              state,
             );
           },
         ),
-        GoRoute(path: '/farm-picker', builder: (_, __) => const FarmPickerScreen()),
-        GoRoute(path: '/welcome', builder: (_, __) => const WelcomeScreen()),
-        GoRoute(path: '/setup', builder: (_, __) => const SetupScreen()),
-        GoRoute(path: '/join', builder: (_, __) => const JoinScreen()),
-        GoRoute(path: '/pin', builder: (_, __) => const PinScreen()),
-        GoRoute(path: '/pin-setup', builder: (_, __) => const PinSetupScreen()),
-        GoRoute(path: '/change-pin', builder: (_, __) => const ChangePinScreen()),
+        GoRoute(path: '/farm-picker', pageBuilder: (_, state) => _smoothPage(const FarmPickerScreen(), state)),
+        GoRoute(path: '/welcome', pageBuilder: (_, state) => _smoothPage(const WelcomeScreen(), state)),
+        GoRoute(path: '/setup', pageBuilder: (_, state) => _smoothPage(const SetupScreen(), state)),
+        GoRoute(path: '/join', pageBuilder: (_, state) => _smoothPage(const JoinScreen(), state)),
+        GoRoute(path: '/pin', pageBuilder: (_, state) => _smoothPage(const PinScreen(), state)),
+        GoRoute(path: '/pin-setup', pageBuilder: (_, state) => _smoothPage(const PinSetupScreen(), state)),
+        GoRoute(path: '/change-pin', pageBuilder: (_, state) => _smoothPage(const ChangePinScreen(), state)),
         GoRoute(
           path: '/animals',
-          builder: (_, state) {
+          pageBuilder: (_, state) {
             final species = state.uri.queryParameters['species'];
             final young = state.uri.queryParameters['young'] == 'true';
-            return AnimalsScreen(species: species, youngOnly: young);
+            return _smoothPage(AnimalsScreen(species: species, youngOnly: young), state);
           },
         ),
         GoRoute(
           path: '/animal/:earTag',
-          builder: (_, state) =>
-              AnimalDetailScreen(earTag: state.pathParameters['earTag']!),
+          pageBuilder: (_, state) => _smoothPage(
+            AnimalDetailScreen(earTag: state.pathParameters['earTag']!),
+            state,
+          ),
         ),
-        GoRoute(path: '/health', builder: (_, state) {
+        GoRoute(path: '/health', pageBuilder: (_, state) {
           final earTag = state.uri.queryParameters['earTag'];
-          return HealthScreen(preselectedEarTag: earTag);
+          return _smoothPage(HealthScreen(preselectedEarTag: earTag), state);
         }),
-        GoRoute(path: '/milk', builder: (_, __) => const MilkScreen()),
-        GoRoute(path: '/vaccination', builder: (_, state) {
+        GoRoute(path: '/milk', pageBuilder: (_, state) => _smoothPage(const MilkScreen(), state)),
+        GoRoute(path: '/vaccination', pageBuilder: (_, state) {
           final earTag = state.uri.queryParameters['earTag'];
-          return VaccinationScreen(preselectedEarTag: earTag);
+          return _smoothPage(VaccinationScreen(preselectedEarTag: earTag), state);
         }),
-        GoRoute(path: '/weight', builder: (_, state) {
+        GoRoute(path: '/weight', pageBuilder: (_, state) {
           final earTag = state.uri.queryParameters['earTag'];
-          return WeightScreen(preselectedEarTag: earTag);
+          return _smoothPage(WeightScreen(preselectedEarTag: earTag), state);
         }),
-        GoRoute(path: '/report', builder: (_, __) => const ReportScreen()),
-        GoRoute(path: '/farm', builder: (_, __) => const FarmScreen()),
-        GoRoute(path: '/farm-gate', builder: (_, __) => const FarmPinGateScreen()),
+        GoRoute(path: '/report', pageBuilder: (_, state) => _smoothPage(const ReportScreen(), state)),
+        GoRoute(path: '/farm', pageBuilder: (_, state) => _smoothPage(const FarmScreen(), state)),
+        GoRoute(path: '/farm-gate', pageBuilder: (_, state) => _smoothPage(const FarmPinGateScreen(), state)),
         GoRoute(
           path: '/add-animal',
-          builder: (_, state) {
+          pageBuilder: (_, state) {
             final species = state.uri.queryParameters['species'];
-            return AddAnimalScreen(defaultSpecies: species);
+            return _smoothPage(AddAnimalScreen(defaultSpecies: species), state);
           },
         ),
         GoRoute(
           path: '/ai-assistant',
-          builder: (_, __) => const AiAssistantScreen(),
+          pageBuilder: (_, state) => _smoothPage(const AiAssistantScreen(), state),
         ),
         GoRoute(
           path: '/archive',
-          builder: (_, __) => const ArchiveScreen(),
+          pageBuilder: (_, state) => _smoothPage(const ArchiveScreen(), state),
         ),
       ],
     );
