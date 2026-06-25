@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'firebase_options.dart';
 import 'theme.dart';
@@ -90,8 +91,39 @@ class AgriVetApp extends StatefulWidget {
   State<AgriVetApp> createState() => _AgriVetAppState();
 }
 
-class _AgriVetAppState extends State<AgriVetApp> {
+class _AgriVetAppState extends State<AgriVetApp> with WidgetsBindingObserver {
   GoRouter? _router;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState lifecycleState) {
+    if (lifecycleState == AppLifecycleState.paused) {
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setInt('bg_timestamp', DateTime.now().millisecondsSinceEpoch);
+      });
+    } else if (lifecycleState == AppLifecycleState.resumed) {
+      SharedPreferences.getInstance().then((prefs) {
+        final ts = prefs.getInt('bg_timestamp');
+        if (ts != null) {
+          final elapsed = DateTime.now().millisecondsSinceEpoch - ts;
+          if (elapsed > 60000 && mounted) {
+            context.read<FarmProvider>().lock();
+          }
+        }
+      });
+    }
+  }
 
   @override
   void didChangeDependencies() {
