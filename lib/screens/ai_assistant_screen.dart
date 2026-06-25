@@ -84,6 +84,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
   int _recordSeconds = 0;
   Timer? _recordTimer;
   late AnimationController _pulseCtrl;
+  String? _pendingImagePath;
 
   // Railway backend session state
   String? _conversationId;
@@ -552,7 +553,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
     final xfile =
         await _picker.pickImage(source: source, imageQuality: 80);
     if (xfile == null || !mounted) return;
-    await _send('', imagePath: xfile.path);
+    setState(() => _pendingImagePath = xfile.path);
   }
 
   // ── TTS ───────────────────────────────────────────────────────────────────
@@ -638,13 +639,19 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
             _InputBar(
               controller: _textCtrl,
               hasText: _hasText,
+              pendingImagePath: _pendingImagePath,
               isRecording: _isRecording,
               recordingLocked: _recordingLocked,
               recordSeconds: _recordSeconds,
               processing: _processing,
               sttProcessing: _sttProcessing,
               pulseCtrl: _pulseCtrl,
-              onSend: () => _send(_textCtrl.text),
+              onSend: () {
+                final img = _pendingImagePath;
+                setState(() => _pendingImagePath = null);
+                _send(_textCtrl.text, imagePath: img);
+              },
+              onRemoveImage: () => setState(() => _pendingImagePath = null),
               onMicStart: _startRecording,
               onMicStop: _stopRecordingAndSend,
               onMicLock: _lockRecording,
@@ -1262,6 +1269,7 @@ class _DotState extends State<_Dot> with SingleTickerProviderStateMixin {
 class _InputBar extends StatefulWidget {
   final TextEditingController controller;
   final bool hasText;
+  final String? pendingImagePath;
   final bool isRecording;
   final bool recordingLocked;
   final int recordSeconds;
@@ -1269,6 +1277,7 @@ class _InputBar extends StatefulWidget {
   final bool sttProcessing;
   final AnimationController pulseCtrl;
   final VoidCallback onSend;
+  final VoidCallback onRemoveImage;
   final VoidCallback onMicStart;
   final VoidCallback onMicStop;
   final VoidCallback onMicLock;
@@ -1278,6 +1287,7 @@ class _InputBar extends StatefulWidget {
   const _InputBar({
     required this.controller,
     required this.hasText,
+    this.pendingImagePath,
     required this.isRecording,
     required this.recordingLocked,
     required this.recordSeconds,
@@ -1285,6 +1295,7 @@ class _InputBar extends StatefulWidget {
     required this.sttProcessing,
     required this.pulseCtrl,
     required this.onSend,
+    required this.onRemoveImage,
     required this.onMicStart,
     required this.onMicStop,
     required this.onMicLock,
@@ -1323,7 +1334,57 @@ class _InputBarState extends State<_InputBar> {
               offset: const Offset(0, -4))
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Photo preview strip — shown when image is staged but not yet sent
+          if (widget.pendingImagePath != null) ...[
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                children: [
+                  Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.file(
+                          File(widget.pendingImagePath!),
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: widget.onRemoveImage,
+                          child: Container(
+                            width: 20,
+                            height: 20,
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close,
+                                color: Colors.white, size: 13),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(width: 10),
+                  const Expanded(
+                    child: Text(
+                      'Rasm qo\'shildi. Matn kiriting va yuboring.',
+                      style: TextStyle(fontSize: 12, color: kGrey),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          Row(
         children: [
           // Camera button (hidden while recording or STT processing)
           if (!widget.isRecording && !widget.sttProcessing)
@@ -1416,7 +1477,8 @@ class _InputBarState extends State<_InputBar> {
               iconColor: Colors.white,
               onTap: widget.onSendLocked,
             )
-          else if (!widget.isRecording && widget.hasText)
+          else if (!widget.isRecording &&
+              (widget.hasText || widget.pendingImagePath != null))
             _BarButton(
               icon: Icons.send_rounded,
               color: kOrange,
@@ -1486,7 +1548,9 @@ class _InputBarState extends State<_InputBar> {
               ),
             ),
         ],
-      ),
+          ), // inner Row
+        ], // Column children
+      ), // Column
     );
   }
 }
