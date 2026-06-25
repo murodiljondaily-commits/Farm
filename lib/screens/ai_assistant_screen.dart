@@ -690,24 +690,54 @@ class _HistorySkeleton extends StatelessWidget {
   }
 }
 
-class _SkeletonBubble extends StatelessWidget {
+class _SkeletonBubble extends StatefulWidget {
   final double width;
   final bool isUser;
   const _SkeletonBubble({required this.width, required this.isUser});
 
   @override
+  State<_SkeletonBubble> createState() => _SkeletonBubbleState();
+}
+
+class _SkeletonBubbleState extends State<_SkeletonBubble>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _fade;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+    _fade = Tween<double>(begin: 0.4, end: 1.0).animate(
+      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+    );
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        width: width,
-        height: 44,
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        decoration: BoxDecoration(
-          color: isUser
-              ? const Color(0xFFE8E4DE)
-              : const Color(0xFFDDD9D2),
-          borderRadius: BorderRadius.circular(18),
+      alignment: widget.isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: FadeTransition(
+        opacity: _fade,
+        child: Container(
+          width: widget.width,
+          height: 44,
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          decoration: BoxDecoration(
+            color: widget.isUser
+                ? const Color(0xFFE8E4DE)
+                : const Color(0xFFDDD9D2),
+            borderRadius: BorderRadius.circular(18),
+          ),
         ),
       ),
     );
