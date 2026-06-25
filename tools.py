@@ -428,7 +428,44 @@ async def add_photo_to_case(
     return {"success": True, "photo_urls": photo_urls}
 
 
-# ─── 13. get_active_cases ────────────────────────────────────────
+# ─── 13. append_case_symptoms ────────────────────────────────────
+
+async def append_case_symptoms(
+    farm_id: str,
+    case_id: str,
+    new_symptoms: List[str],
+    updated_severity: Optional[str] = None,
+    notes: Optional[str] = None,
+) -> Dict:
+    """Append new symptoms to an existing open case. Use when add_health_case
+    returns already_open=true and the farmer reports additional symptoms."""
+    case = await firestore_db.get_case(farm_id, case_id)
+    if not case:
+        return {"found": False, "message": f"Bu holat topilmadi: {case_id}"}
+
+    existing_symptoms = case.get("symptoms", [])
+    merged = existing_symptoms + [s for s in new_symptoms if s not in existing_symptoms]
+
+    update: Dict = {"symptoms": merged}
+    if updated_severity:
+        update["severity"] = updated_severity
+    if notes:
+        treatment_log = case.get("treatment_log", []) + [
+            {"note": notes, "recorded_at": datetime.now(timezone.utc).isoformat()}
+        ]
+        update["treatment_log"] = treatment_log
+
+    await firestore_db.update_case(farm_id, case_id, update)
+    print(f"[append_case_symptoms] case={case_id} added {len(new_symptoms)} symptoms")
+    return {
+        "success": True,
+        "case_id": case_id,
+        "total_symptoms": len(merged),
+        "new_symptoms_added": new_symptoms,
+    }
+
+
+# ─── 14. get_active_cases ────────────────────────────────────────
 
 async def get_active_cases_tool(farm_id: str) -> List[Dict]:
     cases = await firestore_db.get_active_cases(farm_id)

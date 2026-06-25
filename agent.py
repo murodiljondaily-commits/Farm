@@ -24,6 +24,7 @@ from tools import (
     search_rag_tool,
     close_case,
     add_photo_to_case,
+    append_case_symptoms,
     get_active_cases_tool,
     record_event_tool,
 )
@@ -266,6 +267,20 @@ ALL_TOOLS = [
         },
     },
     {
+        "name": "append_case_symptoms",
+        "description": "Mavjud ochiq kasallik holatiga yangi belgilar qo'shish. add_health_case already_open=true qaytarganida foydalaning.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "case_id": {"type": "string"},
+                "new_symptoms": {"type": "array", "items": {"type": "string"}},
+                "updated_severity": {"type": "string", "description": "Yangi og'irlik darajasi (ixtiyoriy): low/medium/high/emergency"},
+                "notes": {"type": "string", "description": "Qo'shimcha klinik izoh (ixtiyoriy)"},
+            },
+            "required": ["case_id", "new_symptoms"],
+        },
+    },
+    {
         "name": "record_event",
         "description": "Istalgan voqeani qayd etish (tug'ilish, o'lim, ko'chirish va boshqalar)",
         "input_schema": {
@@ -286,7 +301,7 @@ _TOOLS_WITH_FARM_ID = {
     "add_health_case", "update_animal_status", "update_animal_info",
     "log_vaccination", "log_bulk_vaccination", "log_weight",
     "log_milk", "get_animal_history", "close_case", "add_photo_to_case",
-    "get_active_cases", "record_event", "search_rag",
+    "append_case_symptoms", "get_active_cases", "record_event", "search_rag",
 }
 
 # Tools that look up / pin an animal on successful return
@@ -315,6 +330,7 @@ TOOL_MAP = {
     "search_rag": search_rag_tool,
     "close_case": close_case,
     "add_photo_to_case": add_photo_to_case,
+    "append_case_symptoms": append_case_symptoms,
     "get_active_cases": get_active_cases_tool,
     "record_event": record_event_tool,
 }
