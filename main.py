@@ -17,7 +17,7 @@ from sheets_sync import sync_to_sheets_background, create_farm_sheet
 from context_builder import build_farm_context
 
 app = FastAPI(title="AgriVet AI Backend", version="1.0")
-print("=== AgriVet backend starting — commit bf15e17 (Item1+Item2) ===")
+print("=== AgriVet backend — Item3A outcome enforcement + Item4 RAG + Item5 search_rag ===")
 
 app.add_middleware(
     CORSMiddleware,
@@ -582,6 +582,7 @@ async def close_case_endpoint(
             farm_id=farm_id,
             case_id=case_id,
             outcome=outcome,
+            recovery_days=recovery_days,
             vet_confirmed=vet_confirmed,
             vet_notes=vet_notes,
         )

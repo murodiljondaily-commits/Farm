@@ -232,12 +232,13 @@ ALL_TOOLS = [
     },
     {
         "name": "close_case",
-        "description": "Kasallik holatini yopish va natijani saqlash",
+        "description": "Kasallik holatini yopish. FAQAT barcha maydonlar to'ldirilgandan keyin chaqiring: outcome, recovery_days (tuzaldi/yomonlashdi uchun), vet_confirmed.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "case_id": {"type": "string"},
-                "outcome": {"type": "string", "description": "Natija: tuzaldi/yomonlashdi/o'ldi"},
+                "outcome": {"type": "string", "enum": ["tuzaldi", "yomonlashdi", "o'ldi", "boshqa joyga yuborildi"]},
+                "recovery_days": {"type": "integer", "description": "Necha kunda tuzaldi — FAQAT tuzaldi yoki yomonlashdi uchun"},
                 "vet_confirmed": {"type": "boolean"},
                 "vet_notes": {"type": "string"},
             },
@@ -392,7 +393,27 @@ QAYSI AMALLAR FONDA BAJARILADI:
 
 FAQAT BULAR TASDIQ TALAB QILADI:
 - Hayvonni "o'ldi" yoki "soyildi" deb belgilash — aniq so'rang: "Hamroni o'ldi deb belgilayman. Tasdiqlaysizmi?"
-- Kasallik holatini yopish (close_case) — natija, tuzalish kunlari, doktor tasdiqlovi so'rang
+- Kasallik holatini yopish (close_case) — quyidagi MAJBURIY tartibni bajar
+
+KASALLIK YOPISH — MAJBURIY TARTIB (close_case dan OLDIN):
+Quyidagi iboralar eshitilganda darhol bu tartibni boshlang:
+"tuzalib ketdi", "yaxshi bo'ldi", "sog'aydi", "o'ldi", "soyildi",
+"boshqa joyga yubordik", "o'tib ketdi", "davolab bo'ldik", "tuzaldi"
+
+1-QADAM: Natijani so'rang — faqat bulardan birini:
+"Natija qanday? Tuzaldimi, yomonlashdimi, o'ldimi yoki boshqa joyga yuborildimi?"
+
+2-QADAM: Faqat "tuzaldi" yoki "yomonlashdi" uchun so'rang:
+"Necha kunda tuzaldi?" — o'ldi yoki boshqa yuborildi uchun BU SAVOLNI SO'RAMA
+
+3-QADAM: "Doktor tasdiqladi: ha yoki yo'q?"
+
+4-QADAM (ixtiyoriy): "Qo'shimcha izoh bor bo'lsa ayting."
+
+Barcha majburiy javoblar olingandan KEYIN close_case() chaqiring:
+close_case(case_id=..., outcome=..., recovery_days=..., vet_confirmed=...)
+
+MUHIM: close_case() ni to'liq ma'lumot bo'lmay CHAQIRMANG.
 
 MA'LUMOT O'QISH VA KASALLIK OCHISH TARTIBI:
 - Avval get_animal_full_record — taxmin qilmang

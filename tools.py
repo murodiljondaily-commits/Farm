@@ -343,6 +343,7 @@ async def close_case(
     farm_id: str,
     case_id: str,
     outcome: str,
+    recovery_days: Optional[int] = None,
     vet_confirmed: bool = False,
     vet_notes: Optional[str] = None,
 ) -> Dict:
@@ -352,9 +353,19 @@ async def close_case(
 
     now_dt = datetime.now(timezone.utc)
     now_iso = now_dt.isoformat()
+
+    # If Sonya collected recovery_days from conversation, use that; otherwise calculate from opened_at
+    if recovery_days is None and case.get("opened_at"):
+        try:
+            opened_dt = datetime.fromisoformat(case["opened_at"].replace("Z", "+00:00"))
+            recovery_days = (now_dt - opened_dt).days
+        except Exception:
+            pass
+
     await firestore_db.update_case(farm_id, case_id, {
         "closed_at": now_iso,
         "outcome": outcome,
+        "recovery_days": recovery_days,
         "confirmed_by_vet": vet_confirmed,
         "vet_notes": vet_notes,
     })
@@ -381,14 +392,6 @@ async def close_case(
     species = case.get("species", "")
     if ai_diagnosis and species:
         try:
-            opened_at = case.get("opened_at", "")
-            recovery_days: Optional[int] = None
-            if opened_at:
-                try:
-                    opened_dt = datetime.fromisoformat(opened_at.replace("Z", "+00:00"))
-                    recovery_days = (now_dt - opened_dt).days
-                except Exception:
-                    pass
             patterns = await firestore_db.find_rag_patterns_by_diagnosis(ai_diagnosis, species)
             for p in patterns:
                 if p.get("outcome") is None:  # only update patterns that still have no outcome
