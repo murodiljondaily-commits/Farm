@@ -292,11 +292,12 @@ _TOOLS_WITH_FARM_ID = {
 # Tools that look up / pin an animal on successful return
 _ANIMAL_LOOKUP_TOOLS = {"get_animal", "get_animal_full_record"}
 
-# Write tools that require explicit user confirmation before execution
-_WRITE_TOOLS_REQUIRE_CONFIRM = {
-    "add_health_case", "update_animal_status", "update_animal_info",
-    "log_vaccination", "log_bulk_vaccination", "log_weight", "close_case",
-}
+# Only truly destructive actions go through the confirmation queue.
+# Routine clinical writes (health cases, vaccinations, weights, events) execute silently.
+_WRITE_TOOLS_REQUIRE_CONFIRM = {"close_case"}
+
+# Status values that are irreversible — always require confirmation
+_DESTRUCTIVE_STATUSES = {"oldi", "soyildi"}
 
 TOOL_MAP = {
     "get_farm_stats": get_farm_stats,
@@ -354,18 +355,22 @@ HAYVON PINNING (MUHIM):
 - Agar foydalanuvchi xira/qisqa javob bersa (faqat ism yoki "u" desa), pinned hayvondan davom eting
 - Hayvon o'zgarganda: belgilar/tashxis ma'lumotini TOZALANG — eski hayvon belgilari yangi hayvonga o'tmaydi
 
-MA'LUMOT SAQLASHDAN OLDIN TASDIQ OLISH (MUHIM):
-- Holat o'zgartirish, kasallik ochish, emlash, vazn yozishdan OLDIN:
-  * Nima qilmoqchi ekanligingizni aniq aytib, foydalanuvchidan "ha" yoki "tasdiqlayman" so'rang
-  * Masalan: "Hamroni 'Davolanmoqda' deb belgilayman. Tasdiqlaysizmi?"
-  * MUHIM: Tasdiq so'raganda write toolni CHAQIRMANG — faqat matn qaytaring
-- Foydalanuvchi "ha/ok/tasdiqlayman" desa: write toolni chaqiring va natijani xabarlang
-- Favqulodda holat (qon oqmoqda, nafas olmayapti va h.k.): tasdiqsiz darhol harakatlaning
+KLINIK YONDASHUV (MUHIM):
+- Kasallik belgilari, vazn, emlash ma'lumotlari eshitilganda — darhol kerakli toollarni chaqir, KEYIN klinik xulosangni ayt
+- "Saqlayapman", "qayd etildi", "tizimga kiritildi", "tasdiqlaysizmi?" kabi iboralar HECH QACHON ISHLATMANG
+- Faqat klinik tilida gapiring: tashxis, davolash, nazorat muddati, prognoz
+- Masalan: "Ko'z va burun shilliq — konjunktivit ehtimoliy. Amoksitsillin + ko'z tomchilari. 3 kun nazorat."
+- Favqulodda holat (qon oqmoqda, nafas olmayapti va h.k.): darhol harakatlan, keyin tushuntir
+
+XAVFLI AMALLAR (FAQAT BULAR tasdiq talab qiladi):
+- Hayvonni "o'ldi" yoki "soyildi" deb belgilash — avval aniq so'rang: "Hamroni o'ldi deb belgilayman. Tasdiqlaysizmi?"
+- Kasallik holatini yopish (close_case) — outcome, recovery_days, vet_confirmed so'rang
 
 MA'LUMOTNI O'QISHDAN OLDIN:
 - Hayvon tarixi, holati yoki kasalliklarini so'rashdan OLDIN — avval get_animal_full_record chaqiring
 - Taxmin qilmang — haqiqiy ma'lumotdan javob bering
 - Yangi kasallik belgilari eshitilganda — AVVAL search_rag chaqiring (species + symptoms_list), natijalarni ko'ring, KEYIN add_health_case chaqiring. Agar search_rag natija topsa — o'xshash holatlarni foydalanuvchiga xabarlang
+- add_health_case {"already_open": true} qaytarsa: yangi holat OCHMANG — mavjud case_id ni ishlating, zarur bo'lsa add_photo_to_case bilan yangi ma'lumot qo'shing
 
 HOMILADORLIK VA MA'LUMOT YANGILASH:
 - Hayvon homiladorlik holati/oyi, ismi, zoti, jinsi, yoshi o'zgarganda: update_animal_info ishlating
@@ -591,7 +596,12 @@ async def run_agent(
                     print(f"[Agent] WARNING: Could not save pin for {pinned_animal!r}: {pin_exc}")
 
             # ── Intercept write tools: require confirmation ───────────────────
-            if block.name in _WRITE_TOOLS_REQUIRE_CONFIRM and not is_emergency:
+            is_destructive = (
+                block.name in _WRITE_TOOLS_REQUIRE_CONFIRM
+                or (block.name == "update_animal_status"
+                    and inputs.get("new_status") in _DESTRUCTIVE_STATUSES)
+            )
+            if is_destructive and not is_emergency:
                 # Reload current pending_writes from Firestore to avoid overwrite race
                 try:
                     current_state = await firestore_db.get_conversation_state(farm_id, conversation_id)
@@ -641,8 +651,8 @@ async def run_agent(
                             print(f"[Agent] WARNING: Could not save pin: {pin_exc}")
 
                 if block.name in (
-                    "add_health_case", "update_animal_info", "log_vaccination",
-                    "log_bulk_vaccination", "log_weight",
+                    "add_health_case", "update_animal_status", "update_animal_info",
+                    "log_vaccination", "log_bulk_vaccination", "log_weight",
                     "log_milk", "record_event", "close_case",
                 ):
                     data_saved[block.name] = result

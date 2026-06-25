@@ -88,6 +88,23 @@ async def add_health_case(
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
 
+    # Duplicate guard: don't open a new case if one is already active for this animal
+    active = await firestore_db.get_active_cases(farm_id)
+    existing = next((c for c in active if c.get("ear_tag") == ear_tag), None)
+    if existing:
+        print(f"[add_health_case] Duplicate blocked — existing case {existing['case_id']} for {ear_tag}")
+        return {
+            "already_open": True,
+            "existing_case_id": existing["case_id"],
+            "existing_diagnosis": existing.get("ai_diagnosis", ""),
+            "existing_severity": existing.get("severity", ""),
+            "message": (
+                f"{ear_tag} uchun allaqachon ochiq kasallik holati mavjud "
+                f"(case_id={existing['case_id']}, tashxis={existing.get('ai_diagnosis','')}). "
+                "Yangi holat ochilmadi. Mavjud holatga yangi belgilar/rasm qo'shing."
+            ),
+        }
+
     case_data = {
         "ear_tag": ear_tag,
         "animal_name": animal.get("name", ""),

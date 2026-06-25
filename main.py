@@ -4,7 +4,7 @@ from typing import Optional
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, BackgroundTasks, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -12,6 +12,7 @@ import firestore_db
 from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo_with_claude
+from tools import close_case as close_case_tool
 from sheets_sync import sync_to_sheets_background, create_farm_sheet
 from context_builder import build_farm_context
 
@@ -451,19 +452,25 @@ async def diagnose_photo(
                     f"{animal.get('age_months', '?')} oy)"
                 )
 
+        print(f"[/diagnose-photo] calling analyze_photo_with_claude...")
         analysis = await analyze_photo_with_claude(
             image_bytes, animal_context, body_part or "",
             content_type=image.content_type or "image/jpeg",
         )
-        print(f"[/diagnose-photo] analysis={analysis}")
+        print(f"[/diagnose-photo] analysis success: {str(analysis)[:200]}")
 
         species = animal.get("species", "") if animal else ""
-        photo_url = await upload_photo(
-            farm_id, ear_tag or "unknown", None, image_bytes,
-            category="health",
-            species=species,
-            condition=analysis.get("probable_diagnosis", "")[:30],
-        )
+        photo_url: Optional[str] = None
+        try:
+            photo_url = await upload_photo(
+                farm_id, ear_tag or "unknown", None, image_bytes,
+                category="health",
+                species=species,
+                condition=analysis.get("probable_diagnosis", "")[:30],
+            )
+            print(f"[/diagnose-photo] upload success: {photo_url}")
+        except Exception as up_exc:
+            print(f"[/diagnose-photo] WARNING: upload_photo failed (non-fatal): {up_exc}")
 
         return {
             "assessment": analysis.get("probable_diagnosis", ""),
@@ -555,6 +562,35 @@ async def get_active_cases(farm_id: str):
         cases = await firestore_db.get_active_cases(farm_id)
         return {"cases": cases, "count": len(cases)}
     except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/farm/{farm_id}/close-case")
+async def close_case_endpoint(
+    farm_id: str,
+    case_id: str = Body(...),
+    outcome: str = Body(...),
+    recovery_days: Optional[int] = Body(None),
+    vet_confirmed: bool = Body(False),
+    vet_notes: Optional[str] = Body(None),
+):
+    """Close a health case from the UI — calls the same close_case logic as the AI agent."""
+    try:
+        print(f"[/close-case] farm={farm_id} case={case_id} outcome={outcome} vet={vet_confirmed}")
+        result = await close_case_tool(
+            farm_id=farm_id,
+            case_id=case_id,
+            outcome=outcome,
+            vet_confirmed=vet_confirmed,
+            vet_notes=vet_notes,
+        )
+        if not result.get("success"):
+            raise HTTPException(status_code=404, detail=result.get("message", "Case not found"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[/close-case] ERROR: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
