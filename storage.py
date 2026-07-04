@@ -11,6 +11,19 @@ client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
 MODEL = "gemini-2.5-flash"
 
 
+def _thinking_off_kwargs() -> Dict:
+    """Disable 2.5-flash 'thinking' so the vision reply isn't starved of output
+    tokens. Defensive: older google-genai without `thinking_budget` must not
+    crash the request — omit it instead. See agent.py for the full rationale."""
+    try:
+        return {"thinking_config": types.ThinkingConfig(thinking_budget=0)}
+    except Exception:
+        return {}
+
+
+_THINKING_OFF = _thinking_off_kwargs()
+
+
 async def upload_photo(
     farm_id: str,
     ear_tag: str,
@@ -83,8 +96,7 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
         config=types.GenerateContentConfig(
             max_output_tokens=1024,
             response_mime_type="application/json",
-            # NOTE: thinking_config removed — ThinkingConfig(thinking_budget=0)
-            # is rejected by the pinned google-genai version. See agent.py.
+            **_THINKING_OFF,
         ),
     )
 

@@ -34,6 +34,23 @@ MODEL = "gemini-2.5-flash"
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
 
 
+def _thinking_off_kwargs() -> Dict[str, Any]:
+    """Kwargs to disable 2.5-flash 'thinking'. Gemini 2.5 thinks by default and
+    can spend the whole output-token budget on hidden thoughts, returning an
+    EMPTY response.text (the "javob tayyorlab bo'lmadi" fallback). Disabling it
+    keeps this a fast tool-calling agent. Built defensively: older google-genai
+    versions whose ThinkingConfig lacks `thinking_budget` must NOT 500 every
+    request — in that case we simply omit it."""
+    try:
+        return {"thinking_config": types.ThinkingConfig(thinking_budget=0)}
+    except Exception as exc:  # pragma: no cover - depends on installed SDK
+        print(f"[Agent] thinking disable unsupported by SDK, leaving default: {exc}")
+        return {}
+
+
+_THINKING_OFF = _thinking_off_kwargs()
+
+
 def _as_response_dict(result: Any) -> Dict:
     """Gemini function responses must be JSON objects. Sanitise (datetimes etc.)
     via a json round-trip and wrap any non-dict return so it is always a dict."""
@@ -648,10 +665,9 @@ async def run_agent(
         tools=GEMINI_TOOLS,
         temperature=0.7,
         max_output_tokens=4096,
-        # NOTE: 2.5-flash "thinking" left at default. Passing
-        # ThinkingConfig(thinking_budget=0) crashed on the google-genai version
-        # pinned here ("Extra inputs are not permitted"). Re-add a version-safe
-        # thinking-disable once the SDK version is confirmed to support it.
+        # Disable "thinking" (see _thinking_off_kwargs) so the model spends its
+        # output budget on the actual reply, not hidden thoughts.
+        **_THINKING_OFF,
         # Manual tool loop — we intercept writes for confirmation ourselves.
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         tool_config=types.ToolConfig(
