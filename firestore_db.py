@@ -69,6 +69,25 @@ async def save_farm(farm_data: Dict) -> None:
     _run(_q)
 
 
+async def get_farms_by_owner(uid: Optional[str], email: Optional[str]) -> List[Dict]:
+    """Return farms where owner_uid == uid OR owner_email == email (deduped by id)."""
+    def _q():
+        col = get_db().collection("farms")
+        found: Dict[str, Dict] = {}
+        if uid:
+            for doc in col.where("owner_uid", "==", uid).limit(50).stream():
+                data = doc.to_dict()
+                data["farm_id"] = doc.id
+                found[doc.id] = data
+        if email:
+            for doc in col.where("owner_email", "==", email).limit(50).stream():
+                data = doc.to_dict()
+                data["farm_id"] = doc.id
+                found[doc.id] = data
+        return list(found.values())
+    return _run(_q)
+
+
 async def get_farm_by_code(farm_code: str) -> Optional[Dict]:
     """Look up a farm by its join code (case-insensitive exact match)."""
     upper = farm_code.upper()

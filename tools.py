@@ -13,6 +13,19 @@ def _now_time() -> str:
     return datetime.now().strftime("%H:%M")
 
 
+def _current_season() -> str:
+    """Northern-hemisphere season from the current month — enriches RAG patterns
+    so Sonya can spot seasonal disease trends (e.g. summer bloat, winter pneumonia)."""
+    m = datetime.now().month
+    if 3 <= m <= 5:
+        return "bahor"       # spring
+    if 6 <= m <= 8:
+        return "yoz"         # summer
+    if 9 <= m <= 11:
+        return "kuz"         # autumn
+    return "qish"            # winter
+
+
 # ─── 1. get_farm_stats ────────────────────────────────────────────
 
 async def get_farm_stats(farm_id: str) -> Dict:
@@ -120,7 +133,7 @@ async def add_health_case(
         "confirmed_by_vet": False,
         "vet_notes": None,
         "outcome": None,
-        "ai_model": "claude-sonnet-4-6",
+        "ai_model": "gemini-2.0-flash",
         "visual_findings": "",
     }
     case_id = await firestore_db.create_case(farm_id, case_data)
@@ -150,7 +163,7 @@ async def add_health_case(
         "confidence_score": confidence,
         "confirmed_by_vet": False,
         "region": "",
-        "season": "",
+        "season": _current_season(),
     })
 
     row = [

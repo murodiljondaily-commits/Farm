@@ -11,7 +11,7 @@ from fastapi.responses import Response
 import firestore_db
 from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest
 from agent import run_agent
-from storage import upload_photo, analyze_photo_with_claude
+from storage import upload_photo, analyze_photo
 from tools import close_case as close_case_tool
 from sheets_sync import sync_to_sheets_background, create_farm_sheet
 from context_builder import build_farm_context
@@ -49,6 +49,7 @@ async def create_farm(req: CreateFarmRequest):
             "location": req.location,
             "owner_name": req.owner_name,
             "owner_email": req.owner_email,
+            "owner_uid": req.owner_uid,
             "phone": req.phone,
         })
         return {"success": True, "farm_id": req.farm_id}
@@ -77,6 +78,33 @@ async def get_farm_by_code(farm_code: str):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
+@app.get("/farms-by-owner")
+async def farms_by_owner(uid: Optional[str] = None, email: Optional[str] = None):
+    """Return all farms owned by a Google account (matched on owner_uid or
+    owner_email). Used to restore a farm when the owner signs in on a new device."""
+    if not uid and not email:
+        return {"farms": []}
+    try:
+        farms = await firestore_db.get_farms_by_owner(uid, email)
+        return {
+            "farms": [
+                {
+                    "farm_id": f["farm_id"],
+                    "farm_name": f.get("name", ""),
+                    "farm_code": f.get("farm_code", ""),
+                    "location": f.get("location", ""),
+                    "owner_name": f.get("owner_name", ""),
+                    "owner_email": f.get("owner_email"),
+                    "owner_uid": f.get("owner_uid"),
+                }
+                for f in farms
+            ]
+        }
+    except Exception as exc:
+        print(f"[/farms-by-owner] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
 # ─── Diagnostics (temporary) ──────────────────────────────────────
 
 @app.get("/debug-firebase")
@@ -92,9 +120,9 @@ async def debug_firebase():
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
     result["step1_env_var_length"] = len(raw)
     result["step1_FIREBASE_PROJECT_ID"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
-    ant_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    result["step1_ANTHROPIC_API_KEY_set"] = bool(ant_key)
-    result["step1_ANTHROPIC_API_KEY_prefix"] = ant_key[:12] if ant_key else "NOT SET"
+    gem_key = os.environ.get("GEMINI_API_KEY", "")
+    result["step1_GEMINI_API_KEY_set"] = bool(gem_key)
+    result["step1_GEMINI_API_KEY_prefix"] = gem_key[:8] if gem_key else "NOT SET"
 
     if not raw:
         result["step1_error"] = "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
@@ -176,7 +204,7 @@ async def debug_firebase():
             ("google_com", "https://www.google.com"),
             ("oauth2_googleapis", "https://oauth2.googleapis.com/"),
             ("firestore_googleapis", "https://firestore.googleapis.com/"),
-            ("anthropic_api", "https://api.anthropic.com/"),
+            ("gemini_api", "https://generativelanguage.googleapis.com/"),
         ]:
             try:
                 req = urllib.request.Request(url, headers={"User-Agent": "diag/1"})
@@ -259,12 +287,12 @@ async def debug_firebase():
         result["step6_grpc_write"] = "FAILED"
         result["step6_full_traceback"] = traceback.format_exc()
 
-    # ── Step 7: httpx async test (same library anthropic SDK uses) ───
+    # ── Step 7: httpx async connectivity test ───
     async def _test_httpx_async():
         import httpx, traceback as tb
         results = {}
         for label, url in [
-            ("anthropic_h1", "https://api.anthropic.com/"),
+            ("gemini_h1", "https://generativelanguage.googleapis.com/"),
             ("google_h1", "https://www.google.com"),
         ]:
             try:
@@ -274,7 +302,7 @@ async def debug_firebase():
             except Exception as e:
                 results[label] = f"FAILED {type(e).__name__}: {e}"
         for label, url in [
-            ("anthropic_h2", "https://api.anthropic.com/"),
+            ("gemini_h2", "https://generativelanguage.googleapis.com/"),
         ]:
             try:
                 async with httpx.AsyncClient(http2=True, timeout=10) as c:
@@ -289,26 +317,18 @@ async def debug_firebase():
     except Exception:
         result["step7_httpx_async"] = traceback.format_exc()
 
-    # ── Step 8: Actual Anthropic API call using agent.py's client ────
-    from agent import client as anthropic_client
-    result["step8_client_type"] = type(anthropic_client).__name__
+    # ── Step 8: Actual Gemini API call using agent.py's client ────
+    from agent import client as gemini_client, MODEL as gemini_model
+    result["step8_client_type"] = type(gemini_client).__name__
     try:
-        hc = anthropic_client._client  # the underlying httpx.AsyncClient
-        result["step8_http2_enabled"] = getattr(hc, "_transport", None) is not None
-        result["step8_client_repr"] = repr(hc)[:200]
-    except Exception as e:
-        result["step8_client_inspect"] = str(e)
-
-    try:
-        ping = await anthropic_client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[{"role": "user", "content": "hi"}],
+        ping = await gemini_client.aio.models.generate_content(
+            model=gemini_model,
+            contents="hi",
         )
-        result["step8_anthropic_ping"] = ping.content[0].text if ping.content else "ok"
+        result["step8_gemini_ping"] = (ping.text or "ok")[:50]
     except Exception:
-        result["step8_anthropic_ping"] = "FAILED"
-        result["step8_anthropic_traceback"] = traceback.format_exc()
+        result["step8_gemini_ping"] = "FAILED"
+        result["step8_gemini_traceback"] = traceback.format_exc()
 
     executor.shutdown(wait=False)
     return result
@@ -334,8 +354,21 @@ async def chat(req: ChatRequest):
             data_saved=result.get("data_saved", {}),
         )
     except Exception as exc:
+        msg = str(exc)
         print(f"[/chat] ERROR: {exc}")
-        raise HTTPException(status_code=500, detail=str(exc))
+        # Gemini quota / rate-limit exhausted — show the farmer a clear message
+        # instead of a hard error (the underlying fix is billing/quota on the key).
+        low = msg.lower()
+        if "resource_exhausted" in low or "429" in low or "quota" in low:
+            return ChatResponse(
+                response="Kechirasiz, AI xizmati hozircha band (limit tugadi). "
+                         "Birozdan so'ng qayta urinib ko'ring yoki administrator bilan bog'laning.",
+                conversation_id=req.conversation_id or "",
+                vet_mode=req.vet_mode,
+                tools_called=[],
+                data_saved={},
+            )
+        raise HTTPException(status_code=500, detail=msg)
 
 
 # ─── Photo analysis + upload ──────────────────────────────────────
@@ -358,7 +391,7 @@ async def photo_upload(
             if animal else f"Quloq raqami: {ear_tag}"
         )
 
-        analysis = await analyze_photo_with_claude(
+        analysis = await analyze_photo(
             image_bytes, animal_context, body_part_hint or ""
         )
 
@@ -437,7 +470,7 @@ async def diagnose_photo(
     body_part: Optional[str] = Form(None),
     image: UploadFile = File(...),
 ):
-    """Vision diagnosis endpoint — Flutter uploads image, backend calls Anthropic."""
+    """Vision diagnosis endpoint — Flutter uploads image, backend calls Gemini."""
     try:
         image_bytes = await image.read()
         print(f"[/diagnose-photo] farm={farm_id} ear_tag={ear_tag} size={len(image_bytes)}B "
@@ -453,8 +486,8 @@ async def diagnose_photo(
                     f"{animal.get('age_months', '?')} oy)"
                 )
 
-        print(f"[/diagnose-photo] calling analyze_photo_with_claude...")
-        analysis = await analyze_photo_with_claude(
+        print(f"[/diagnose-photo] calling analyze_photo...")
+        analysis = await analyze_photo(
             image_bytes, animal_context, body_part or "",
             content_type=image.content_type or "image/jpeg",
         )

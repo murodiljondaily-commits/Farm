@@ -3,8 +3,8 @@ import json
 import uuid
 from typing import Optional, List, Dict, Any
 
-import httpx
-from anthropic import AsyncAnthropic
+from google import genai
+from google.genai import types
 
 import firestore_db
 from context_builder import build_farm_context
@@ -29,13 +29,19 @@ from tools import (
     record_event_tool,
 )
 
-client = AsyncAnthropic(
-    api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
-    http_client=httpx.AsyncClient(
-        http2=False,
-        timeout=httpx.Timeout(connect=30.0, read=300.0, write=30.0, pool=30.0),
-    ),
-)
+MODEL = "gemini-2.5-flash"
+
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
+
+
+def _as_response_dict(result: Any) -> Dict:
+    """Gemini function responses must be JSON objects. Sanitise (datetimes etc.)
+    via a json round-trip and wrap any non-dict return so it is always a dict."""
+    try:
+        safe = json.loads(json.dumps(result, ensure_ascii=False, default=str))
+    except Exception:
+        safe = {"result": str(result)}
+    return safe if isinstance(safe, dict) else {"result": safe}
 
 ALL_TOOLS = [
     {
@@ -296,6 +302,30 @@ ALL_TOOLS = [
     },
 ]
 
+def _to_gemini_declaration(tool: Dict) -> Dict:
+    """Convert an Anthropic-style tool (name/description/input_schema) into a
+    Gemini FunctionDeclaration dict. Tools with no parameters omit `parameters`
+    entirely — Gemini rejects an OBJECT schema with empty properties."""
+    schema = tool.get("input_schema", {})
+    props = schema.get("properties", {})
+    decl: Dict[str, Any] = {
+        "name": tool["name"],
+        "description": tool["description"],
+    }
+    if props:
+        params: Dict[str, Any] = {"type": "object", "properties": props}
+        if schema.get("required"):
+            params["required"] = schema["required"]
+        decl["parameters"] = params
+    return decl
+
+
+# Gemini expects tools grouped under a single Tool with function_declarations.
+GEMINI_TOOLS = [
+    types.Tool(function_declarations=[_to_gemini_declaration(t) for t in ALL_TOOLS])
+]
+
+
 # Tools that require farm_id injected server-side
 _TOOLS_WITH_FARM_ID = {
     "get_farm_stats", "get_all_animals", "get_animal", "get_animal_full_record",
@@ -381,7 +411,7 @@ TAQIQLANGAN iboralar — bularni HECH QACHON ISHLATMA:
 - "Tasdiqlaysizmi?", "Tasdiqlayman", "Ha deb tasdiqlang"
 - "Ma'lumotlar bazasiga yozdim", "Tizimda belgiladim", "Amal bajarildi"
 
-Tool {"success": true} yoki {"case_id": ...} qaytarsa — klinik suhbatni davom ettir, saqlash haqida HECH NARSA demang.
+Tool {{"success": true}} yoki {{"case_id": ...}} qaytarsa — klinik suhbatni davom ettir, saqlash haqida HECH NARSA demang.
 
 KASALLIK TRIGGER — add_health_case qachon chaqiriladi:
 Fermer hayvon muammosini TASVIRLASA trigger bo'ladi (belgilar, og'riq, o'zgarish, notanish ko'rinish).
@@ -543,11 +573,15 @@ async def run_agent(
     # ── Build context and history ─────────────────────────────────────────────
     context = await build_farm_context(farm_id)
     raw_history = await firestore_db.get_conversation_history(farm_id, conversation_id, limit=10)
-    messages: List[Dict] = [
-        {"role": m["role"], "content": m["content"]}
-        for m in raw_history
-        if m.get("role") in ("user", "assistant")
-    ]
+    # Gemini uses role "model" (not "assistant") and Content/Part objects.
+    contents: List[Any] = []
+    for m in raw_history:
+        role = m.get("role")
+        text = m.get("content") or ""
+        if role == "user":
+            contents.append(types.Content(role="user", parts=[types.Part(text=text)]))
+        elif role == "assistant":
+            contents.append(types.Content(role="model", parts=[types.Part(text=text)]))
 
     pinned_label = pinned_animal if pinned_animal else "Hali aniqlanmagan"
     system_prompt = SYSTEM_BASE.format(
@@ -605,50 +639,60 @@ async def run_agent(
             )
             pending_writes = []
 
-    messages.append({"role": "user", "content": user_message})
+    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
 
     tools_called_names: List[str] = []
 
-    # ── Agent loop ────────────────────────────────────────────────────────────
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4096,
-        system=system_prompt,
-        tools=ALL_TOOLS,
-        messages=messages,
+    gen_config = types.GenerateContentConfig(
+        system_instruction=system_prompt,
+        tools=GEMINI_TOOLS,
+        temperature=0.7,
+        max_output_tokens=4096,
+        # Disable 2.5-flash "thinking" — this is a fast tool-calling agent; thinking
+        # adds latency and can consume the whole token budget (empty replies).
+        thinking_config=types.ThinkingConfig(thinking_budget=0),
+        # Manual tool loop — we intercept writes for confirmation ourselves.
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
+        tool_config=types.ToolConfig(
+            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
+        ),
     )
-    print(f"[Agent] stop_reason={response.stop_reason}")
 
-    while response.stop_reason == "tool_use":
-        tool_results = []
-        assistant_content = response.content
+    # ── Agent loop ────────────────────────────────────────────────────────────
+    response = await client.aio.models.generate_content(
+        model=MODEL, contents=contents, config=gen_config
+    )
+    print(f"[Agent] initial function_calls={len(response.function_calls or [])}")
+
+    while response.function_calls:
+        function_calls = list(response.function_calls)
         write_intercepted = False
-
-        # Count tool_use blocks for logging
-        tool_use_blocks = [b for b in response.content if b.type == "tool_use"]
         n_queued_this_turn = 0
         n_executed_this_turn = 0
-        print(f"[Agent] tool_use blocks in this turn: {len(tool_use_blocks)} "
-              f"({[b.name for b in tool_use_blocks]})")
+        print(f"[Agent] function_calls in this turn: {len(function_calls)} "
+              f"({[fc.name for fc in function_calls]})")
 
-        for block in response.content:
-            if block.type != "tool_use":
-                continue
+        # Persist the model's function-call turn so the follow-up call has context.
+        if response.candidates and response.candidates[0].content:
+            contents.append(response.candidates[0].content)
 
-            tools_called_names.append(block.name)
-            inputs = dict(block.input)
+        fr_parts = []
+        for fc in function_calls:
+            name = fc.name
+            tools_called_names.append(name)
+            inputs = dict(fc.args or {})
 
             # ── Auto-inject pinned animal into ear_tag if AI omitted it ─────
             if (
                 pinned_animal
                 and "ear_tag" not in inputs
-                and block.name in _TOOLS_WITH_FARM_ID
-                and block.name not in ("get_farm_stats", "get_all_animals", "get_active_cases",
-                                       "log_milk", "record_event", "search_rag",
-                                       "log_bulk_vaccination")
+                and name in _TOOLS_WITH_FARM_ID
+                and name not in ("get_farm_stats", "get_all_animals", "get_active_cases",
+                                 "log_milk", "record_event", "search_rag",
+                                 "log_bulk_vaccination")
             ):
                 inputs["ear_tag"] = pinned_animal
-                print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {block.name}")
+                print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {name}")
 
             # ── Pin animal from write tool inputs ─────────────────────────────
             tool_ear_tag = inputs.get("ear_tag")
@@ -658,14 +702,14 @@ async def run_agent(
                     await firestore_db.update_conversation_state(
                         farm_id, conversation_id, {"pinned_animal": pinned_animal}
                     )
-                    print(f"[Agent] Pinned animal (from {block.name} input) → {pinned_animal!r}")
+                    print(f"[Agent] Pinned animal (from {name} input) → {pinned_animal!r}")
                 except Exception as pin_exc:
                     print(f"[Agent] WARNING: Could not save pin for {pinned_animal!r}: {pin_exc}")
 
             # ── Intercept write tools: require confirmation ───────────────────
             is_destructive = (
-                block.name in _WRITE_TOOLS_REQUIRE_CONFIRM
-                or (block.name == "update_animal_status"
+                name in _WRITE_TOOLS_REQUIRE_CONFIRM
+                or (name == "update_animal_status"
                     and inputs.get("new_status") in _DESTRUCTIVE_STATUSES)
             )
             if is_destructive and not is_emergency:
@@ -675,9 +719,9 @@ async def run_agent(
                     current_writes = current_state.get("pending_writes", [])
                 except Exception:
                     current_writes = list(pending_writes)
-                current_writes.append({"name": block.name, "inputs": inputs})
+                current_writes.append({"name": name, "inputs": inputs})
                 n_queued_this_turn += 1
-                print(f"[Agent] QUEUED {block.name} — pending_writes total: {len(current_writes)}")
+                print(f"[Agent] QUEUED {name} — pending_writes total: {len(current_writes)}")
                 try:
                     await firestore_db.update_conversation_state(
                         farm_id, conversation_id,
@@ -686,26 +730,22 @@ async def run_agent(
                 except Exception as exc:
                     print(f"[Agent] WARNING: Could not save pending_writes: {exc}")
                 write_intercepted = True
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": json.dumps({
-                        "pending": True,
-                        "message": (
-                            "Bu amal foydalanuvchi tasdigini kutmoqda. "
-                            "Foydalanuvchiga nima qilmoqchi ekanligingizni aniq, qisqa va oddiy matnda tushuntiring. "
-                            "Masalan: 'Hamroni Sogʻlom deb belgilayman. Tasdiqlaysizmi?' "
-                            "MUHIM: markdown belgilari ishlatmang."
-                        ),
-                    }, ensure_ascii=False),
-                })
+                result = {
+                    "pending": True,
+                    "message": (
+                        "Bu amal foydalanuvchi tasdigini kutmoqda. "
+                        "Foydalanuvchiga nima qilmoqchi ekanligingizni aniq, qisqa va oddiy matnda tushuntiring. "
+                        "Masalan: 'Hamroni Sogʻlom deb belgilayman. Tasdiqlaysizmi?' "
+                        "MUHIM: markdown belgilari ishlatmang."
+                    ),
+                }
             else:
                 # Execute normally
-                result = await _execute_tool(block.name, inputs, farm_id)
+                result = await _execute_tool(name, inputs, farm_id)
                 n_executed_this_turn += 1
 
                 # ── Auto-pin animal on successful lookup ─────────────────────
-                if block.name in _ANIMAL_LOOKUP_TOOLS and result.get("found") is not False:
+                if name in _ANIMAL_LOOKUP_TOOLS and result.get("found") is not False:
                     new_pin = result.get("ear_tag")
                     if new_pin and new_pin != pinned_animal:
                         pinned_animal = new_pin
@@ -717,38 +757,30 @@ async def run_agent(
                         except Exception as pin_exc:
                             print(f"[Agent] WARNING: Could not save pin: {pin_exc}")
 
-                if block.name in (
+                if name in (
                     "add_health_case", "update_animal_status", "update_animal_info",
                     "log_vaccination", "log_bulk_vaccination", "log_weight",
                     "log_milk", "record_event", "close_case",
                 ):
-                    data_saved[block.name] = result
+                    data_saved[name] = result
 
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": json.dumps(result, ensure_ascii=False, default=str),
-                })
+            fr_parts.append(
+                types.Part.from_function_response(
+                    name=name, response=_as_response_dict(result)
+                )
+            )
 
-        print(f"[Agent] Turn summary: {len(tool_use_blocks)} detected, "
+        print(f"[Agent] Turn summary: {len(function_calls)} detected, "
               f"{n_queued_this_turn} queued, {n_executed_this_turn} executed")
 
-        messages = messages + [
-            {"role": "assistant", "content": assistant_content},
-            {"role": "user", "content": tool_results},
-        ]
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=4096,
-            system=system_prompt,
-            tools=ALL_TOOLS,
-            messages=messages,
+        contents.append(types.Content(role="user", parts=fr_parts))
+        response = await client.aio.models.generate_content(
+            model=MODEL, contents=contents, config=gen_config
         )
-        print(f"[Agent] (loop) stop_reason={response.stop_reason}  write_intercepted={write_intercepted}")
+        print(f"[Agent] (loop) function_calls={len(response.function_calls or [])} "
+              f"write_intercepted={write_intercepted}")
 
-    final_text = "".join(
-        block.text for block in response.content if hasattr(block, "text") and block.text
-    )
+    final_text = (response.text or "").strip()
     if not final_text:
         final_text = "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring."
 

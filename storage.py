@@ -1,21 +1,14 @@
 import os
-import base64
 import json
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
-import httpx
-from anthropic import AsyncAnthropic
+from google import genai
+from google.genai import types
 from firebase_admin import storage as fb_storage
 
-# Use same httpx config as agent.py — http2=False avoids Railway connection errors
-client = AsyncAnthropic(
-    api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip(),
-    http_client=httpx.AsyncClient(
-        http2=False,
-        timeout=httpx.Timeout(connect=30.0, read=120.0, write=30.0, pool=30.0),
-    ),
-)
+client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
+MODEL = "gemini-2.5-flash"
 
 
 async def upload_photo(
@@ -50,17 +43,15 @@ async def upload_photo(
     return blob.public_url
 
 
-_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
+# Gemini vision accepts jpeg/png/webp/heic/heif — normalise anything else to jpeg
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
 
-async def analyze_photo_with_claude(
+async def analyze_photo(
     image_bytes: bytes,
     animal_context: str,
     body_part_hint: str = "",
     content_type: str = "image/jpeg",
 ) -> Dict:
-    image_b64 = base64.b64encode(image_bytes).decode()
-
-    # Anthropic only accepts jpeg/png/gif/webp — normalise everything else to jpeg
     media_type = content_type if content_type in _ALLOWED_IMAGE_TYPES else "image/jpeg"
 
     prompt = f"""Siz tajribali veterinarsiz. Bu hayvon rasmini tahlil qiling.
@@ -78,28 +69,27 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
   "which_leg_or_part": "aniq qaysi qism ko'rinmoqda"
 }}"""
 
-    response = await client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image",
-                        "source": {
-                            "type": "base64",
-                            "media_type": media_type,
-                            "data": image_b64,
-                        },
-                    },
-                    {"type": "text", "text": prompt},
+    response = await client.aio.models.generate_content(
+        model=MODEL,
+        contents=[
+            types.Content(
+                role="user",
+                parts=[
+                    types.Part.from_bytes(data=image_bytes, mime_type=media_type),
+                    types.Part(text=prompt),
                 ],
-            }
+            )
         ],
+        config=types.GenerateContentConfig(
+            max_output_tokens=1024,
+            response_mime_type="application/json",
+            # Disabled for reliable JSON within budget; can enable for deeper
+            # diagnostic reasoning if max_output_tokens is raised accordingly.
+            thinking_config=types.ThinkingConfig(thinking_budget=0),
+        ),
     )
 
-    text = response.content[0].text
+    text = response.text or ""
     clean = text.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(clean)

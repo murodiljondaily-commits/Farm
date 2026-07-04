@@ -39,6 +39,7 @@ class CreateFarmRequest(BaseModel):
     location: str
     owner_name: str
     owner_email: Optional[str] = None
+    owner_uid: Optional[str] = None
     phone: Optional[str] = None
 
 
