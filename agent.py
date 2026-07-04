@@ -795,10 +795,11 @@ async def run_agent(
                 result = {
                     "status": "awaiting_confirmation",
                     "message": (
-                        "Bu amal foydalanuvchiga tasdiqlash KARTASI ko'rinishida ko'rsatiladi. "
-                        "Foydalanuvchiga nima qilmoqchi ekaningizni QISQA, bir jumlada, oddiy tabiiy "
-                        "tilda ayting. Amal Tasdiqlash tugmasi bosilgach bajariladi — "
-                        "'saqlab bo'lmadi' yoki 'xatolik' DEMANG."
+                        "Amal HALI BAJARILMADI — foydalanuvchiga tasdiqlash KARTASI chiqadi. "
+                        "Nima qilmoqchi ekaningizni QISQA, bir jumlada, KELASI zamonda ayting "
+                        "(masalan: 'h001 vaznini 250 kg qilib yozaman — tasdiqlang'). "
+                        "'belgilandi', 'saqlandi', 'bajarildi' kabi O'TGAN zamon SO'ZLARINI ISHLATMANG. "
+                        "'saqlab bo'lmadi' yoki 'xatolik' ham DEMANG."
                     ),
                 }
             elif name in WRITE_TOOLS and is_emergency:
