@@ -83,9 +83,8 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
         config=types.GenerateContentConfig(
             max_output_tokens=1024,
             response_mime_type="application/json",
-            # Disabled for reliable JSON within budget; can enable for deeper
-            # diagnostic reasoning if max_output_tokens is raised accordingly.
-            thinking_config=types.ThinkingConfig(thinking_budget=0),
+            # NOTE: thinking_config removed — ThinkingConfig(thinking_budget=0)
+            # is rejected by the pinned google-genai version. See agent.py.
         ),
     )
 

@@ -648,9 +648,10 @@ async def run_agent(
         tools=GEMINI_TOOLS,
         temperature=0.7,
         max_output_tokens=4096,
-        # Disable 2.5-flash "thinking" — this is a fast tool-calling agent; thinking
-        # adds latency and can consume the whole token budget (empty replies).
-        thinking_config=types.ThinkingConfig(thinking_budget=0),
+        # NOTE: 2.5-flash "thinking" left at default. Passing
+        # ThinkingConfig(thinking_budget=0) crashed on the google-genai version
+        # pinned here ("Extra inputs are not permitted"). Re-add a version-safe
+        # thinking-disable once the SDK version is confirmed to support it.
         # Manual tool loop — we intercept writes for confirmation ourselves.
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
         tool_config=types.ToolConfig(
