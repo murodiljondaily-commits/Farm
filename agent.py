@@ -843,7 +843,10 @@ async def run_agent(
 
     final_text = (response.text or "").strip()
     if not final_text:
-        final_text = "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring."
+        # A proposed action carries its own card, so never show the error
+        # fallback next to it (that read as contradictory).
+        final_text = ("Quyidagi amalni tasdiqlang:" if proposed_actions
+                      else "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring.")
 
     await firestore_db.save_conversation_turn(
         farm_id, conversation_id, user_message, final_text, tools_called_names
