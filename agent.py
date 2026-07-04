@@ -29,12 +29,12 @@ from tools import (
     record_event_tool,
 )
 
-# gemini-2.0-flash does NOT have 2.5's default "thinking" mode, so it never
-# burns the output-token budget on hidden thoughts (which produced empty replies
-# on 2.5-flash). It's also the only google-genai the Railway dep set can install
-# (google-auth==2.36.0 caps google-genai at ~1.2.0, whose ThinkingConfig lacks
-# thinking_budget — so we cannot disable 2.5 thinking there anyway).
-MODEL = "gemini-2.0-flash"
+# gemini-2.5-flash-lite has "thinking" OFF by default (unlike 2.5-flash, where
+# it's on and burns the whole output-token budget → empty replies). We cannot
+# disable 2.5-flash thinking here because google-auth==2.36.0 caps google-genai
+# at ~1.2.0, whose ThinkingConfig lacks thinking_budget. Flash-Lite sidesteps
+# that entirely and is a fast, available model. (gemini-2.0-flash is retired.)
+MODEL = "gemini-2.5-flash-lite"
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
 
