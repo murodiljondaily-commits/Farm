@@ -8,7 +8,7 @@ from google.genai import types
 from firebase_admin import storage as fb_storage
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-2.0-flash"  # see agent.py: no "thinking", installable on Railway
 
 
 def _thinking_off_kwargs() -> Dict:
