@@ -45,3 +45,7 @@ class CreateFarmRequest(BaseModel):
 
 class TtsRequest(BaseModel):
     text: str
+
+
+class AssignCaseRequest(BaseModel):
+    ear_tag: str

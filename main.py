@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest
+from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo
 from tools import close_case as close_case_tool
@@ -507,48 +507,61 @@ async def diagnose_photo(
             print(f"[/diagnose-photo] WARNING: upload_photo failed (non-fatal): {up_exc}")
 
         # ── Persist the diagnosis so it isn't lost ────────────────────────────
-        # (1) Always record a farm event so Sonya remembers it and it shows on
-        #     the timeline — even when the photo isn't tied to a specific animal.
-        # (2) If an ear_tag IS given and the finding is significant, open a
-        #     health case for that animal (mirrors the /photo flow).
+        # ALWAYS create a health case for the photo — assigned to the animal if
+        # an ear_tag was given, otherwise UNASSIGNED (ear_tag=None) so the farmer
+        # can attach it to an animal later from the app (PATCH .../assign). Also
+        # record a farm event so Sonya remembers the diagnosis in future chats.
         diagnosis = analysis.get("probable_diagnosis", "") or "Noma'lum"
         severity = analysis.get("severity", "low")
         visual = analysis.get("visual_findings", "")
+        confidence = analysis.get("confidence", 0)
         result_case_id: Optional[str] = None
         event_id: Optional[str] = None
         try:
-            name = animal.get("name", ear_tag) if animal else (ear_tag or "?")
+            name = animal.get("name", "") if animal else ""
+            case_data = {
+                "ear_tag": ear_tag,                      # None → unassigned
+                "assigned": bool(ear_tag),
+                "animal_name": name,
+                "species": species,
+                "symptoms": [visual] if visual else [],
+                "body_part": analysis.get("which_leg_or_part", body_part or ""),
+                "severity": severity,
+                "ai_diagnosis": diagnosis,
+                "ai_confidence": confidence,
+                "first_aid": analysis.get("immediate_actions", []),
+                "photo_urls": [photo_url] if photo_url else [],
+                "visual_findings": visual,
+                "treatment_log": [],
+                "confirmed_by_vet": False,
+                "vet_notes": None,
+                "outcome": None,
+                "source": "photo_diagnosis",
+                "ai_model": "gemini-2.5-flash",
+                "status": "open",
+            }
+            result_case_id = await firestore_db.create_case(farm_id, case_data)
+            print(f"[/diagnose-photo] case created: {result_case_id} assigned={bool(ear_tag)}")
+
+            # Reflect a serious finding in the animal's status (only if assigned).
+            if ear_tag and animal and severity in ("medium", "high", "emergency"):
+                new_status = "kritik" if severity in ("high", "emergency") else "davolanmoqda"
+                await firestore_db.update_animal(farm_id, ear_tag, {"status": new_status})
+
             event_id = await firestore_db.create_event(farm_id, {
                 "event_type": "photo_diagnosis",
                 "ear_tag": ear_tag,
+                "case_id": result_case_id,
                 "data": {
                     "diagnosis": diagnosis,
                     "severity": severity,
                     "visual_findings": visual,
-                    "confidence": analysis.get("confidence", 0),
+                    "confidence": confidence,
                     "photo_url": photo_url,
                 },
-                "ai_summary": f"Rasm tahlili{f' — {name}' if ear_tag else ''}: {diagnosis} ({severity})",
+                "ai_summary": f"Rasm tahlili{f' — {name}' if name else ''}: {diagnosis} ({severity})",
             })
             print(f"[/diagnose-photo] event recorded: {event_id}")
-
-            if ear_tag and severity in ("medium", "high", "emergency"):
-                from tools import add_health_case
-                case_result = await add_health_case(
-                    farm_id=farm_id,
-                    ear_tag=ear_tag,
-                    symptoms=[visual] if visual else [],
-                    body_part=analysis.get("which_leg_or_part", body_part or "noma'lum"),
-                    severity=severity,
-                    ai_diagnosis=diagnosis,
-                    confidence=analysis.get("confidence", 50),
-                    first_aid=analysis.get("immediate_actions", []),
-                    photo_urls=[photo_url] if photo_url else [],
-                )
-                # add_health_case returns case_id on success, or existing_case_id
-                # if a case was already open for this animal.
-                result_case_id = case_result.get("case_id") or case_result.get("existing_case_id")
-                print(f"[/diagnose-photo] case: {case_result}")
         except Exception as save_exc:
             print(f"[/diagnose-photo] WARNING: persist failed (non-fatal): {save_exc}")
 
@@ -626,6 +639,41 @@ async def get_animals(
         animals = await firestore_db.get_all_animals(farm_id, species=species, status=status)
         return {"animals": animals, "count": len(animals)}
     except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.patch("/farm/{farm_id}/cases/{case_id}/assign")
+async def assign_case(farm_id: str, case_id: str, req: AssignCaseRequest):
+    """Attach an unassigned case (e.g. from a photo taken with no ear tag) to a
+    specific animal. Sets ear_tag + animal name/species on the case."""
+    try:
+        ear_tag = (req.ear_tag or "").strip()
+        if not ear_tag:
+            raise HTTPException(status_code=400, detail="ear_tag required")
+        case = await firestore_db.get_case(farm_id, case_id)
+        if not case:
+            raise HTTPException(status_code=404, detail=f"case not found: {case_id}")
+
+        animal = await firestore_db.get_animal(farm_id, ear_tag)
+        updates = {
+            "ear_tag": ear_tag,
+            "assigned": True,
+            "animal_name": animal.get("name", "") if animal else "",
+            "species": animal.get("species", "") if animal else case.get("species", ""),
+        }
+        await firestore_db.update_case(farm_id, case_id, updates)
+        await firestore_db.create_event(farm_id, {
+            "event_type": "case_assigned",
+            "ear_tag": ear_tag,
+            "case_id": case_id,
+            "ai_summary": f"Kasallik holati {animal.get('name', ear_tag) if animal else ear_tag} hayvoniga biriktirildi",
+        })
+        updated = await firestore_db.get_case(farm_id, case_id)
+        return {"success": True, "case_id": case_id, "case": updated}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[assign-case] ERROR: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
