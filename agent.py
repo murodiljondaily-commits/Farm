@@ -388,6 +388,55 @@ TOOL_MAP = {
     "record_event": record_event_tool,
 }
 
+# ── Phase 1: propose → confirm → execute ──────────────────────────────────────
+# READ tools run immediately and return data. Everything else MUTATES state and
+# must NOT auto-run — it is returned to the app as a proposed_action, and only
+# executed when the user taps Confirm (→ POST /confirm-action).
+READ_TOOLS = {
+    "get_farm_stats", "get_all_animals", "get_animal", "get_animal_full_record",
+    "get_animal_history", "get_active_cases", "search_rag",
+}
+WRITE_TOOLS = set(TOOL_MAP) - READ_TOOLS
+
+
+def _affected_animals(name: str, inputs: Dict) -> List[str]:
+    """Ear tags a proposed write would touch (for the confirm card)."""
+    if name == "log_bulk_vaccination":
+        return [str(t) for t in (inputs.get("ear_tags") or [])]
+    tag = inputs.get("ear_tag")
+    return [str(tag)] if tag else []
+
+
+def _action_summary(name: str, inputs: Dict, affected: List[str]) -> str:
+    """Short, plain-Uzbek one-liner describing the pending action for the card."""
+    n = len(affected)
+    date = inputs.get("date", "bugun")
+    if name == "log_bulk_vaccination":
+        return f"{n} ta hayvonni {inputs.get('vaccine_name', '?')} bilan emlash ({date})."
+    if name == "log_vaccination":
+        return f"{inputs.get('ear_tag', '?')} — {inputs.get('vaccine_name', '?')} emlash ({date})."
+    if name == "add_health_case":
+        what = inputs.get("ai_diagnosis") or ", ".join(inputs.get("symptoms", []) or []) or "yangi holat"
+        return f"{inputs.get('ear_tag', '?')} uchun kasallik holati: {what}."
+    if name == "update_animal_status":
+        return f"{inputs.get('ear_tag', '?')} holatini '{inputs.get('new_status', '?')}' ga o'zgartirish."
+    if name == "update_animal_info":
+        return f"{inputs.get('ear_tag', '?')} ma'lumotlarini yangilash."
+    if name == "log_weight":
+        return f"{inputs.get('ear_tag', '?')} vazni: {inputs.get('weight_kg', '?')} kg."
+    if name == "log_milk":
+        return f"Sut: {inputs.get('liters', '?')} litr ({inputs.get('session', '?')})."
+    if name == "close_case":
+        return f"Kasallik holatini yopish (natija: {inputs.get('outcome', '?')})."
+    if name == "record_event":
+        return f"Voqea qayd etish: {inputs.get('event_type', '?')}."
+    if name == "add_photo_to_case":
+        return f"{inputs.get('ear_tag', '?')} holatiga rasm qo'shish."
+    if name == "append_case_symptoms":
+        return "Kasallik holatiga yangi belgilar qo'shish."
+    return f"{name} amalini bajarish."
+
+
 # ── Confirmation keywords ─────────────────────────────────────────────────────
 
 _CONFIRM_KW = [
@@ -681,15 +730,17 @@ async def run_agent(
     )
 
     # ── Agent loop ────────────────────────────────────────────────────────────
+    proposed_actions: List[Dict[str, Any]] = []
     response = await client.aio.models.generate_content(
         model=MODEL, contents=contents, config=gen_config
     )
     print(f"[Agent] initial function_calls={len(response.function_calls or [])}")
 
-    while response.function_calls:
+    _loop_guard = 0
+    while response.function_calls and _loop_guard < 8:
+        _loop_guard += 1
         function_calls = list(response.function_calls)
-        write_intercepted = False
-        n_queued_this_turn = 0
+        n_proposed_this_turn = 0
         n_executed_this_turn = 0
         print(f"[Agent] function_calls in this turn: {len(function_calls)} "
               f"({[fc.name for fc in function_calls]})")
@@ -728,46 +779,40 @@ async def run_agent(
                 except Exception as pin_exc:
                     print(f"[Agent] WARNING: Could not save pin for {pinned_animal!r}: {pin_exc}")
 
-            # ── Intercept write tools: require confirmation ───────────────────
-            is_destructive = (
-                name in _WRITE_TOOLS_REQUIRE_CONFIRM
-                or (name == "update_animal_status"
-                    and inputs.get("new_status") in _DESTRUCTIVE_STATUSES)
-            )
-            if is_destructive and not is_emergency:
-                # Reload current pending_writes from Firestore to avoid overwrite race
-                try:
-                    current_state = await firestore_db.get_conversation_state(farm_id, conversation_id)
-                    current_writes = current_state.get("pending_writes", [])
-                except Exception:
-                    current_writes = list(pending_writes)
-                current_writes.append({"name": name, "inputs": inputs})
-                n_queued_this_turn += 1
-                print(f"[Agent] QUEUED {name} — pending_writes total: {len(current_writes)}")
-                try:
-                    await firestore_db.update_conversation_state(
-                        farm_id, conversation_id,
-                        {"pending_writes": current_writes},
-                    )
-                except Exception as exc:
-                    print(f"[Agent] WARNING: Could not save pending_writes: {exc}")
-                write_intercepted = True
+            # ── Phase 1: PROPOSE writes, EXECUTE reads ────────────────────────
+            if name in WRITE_TOOLS and not is_emergency:
+                # Do NOT run the mutation. Return it as a proposed_action so the
+                # app shows a Confirm card; it runs later via /confirm-action.
+                affected = _affected_animals(name, inputs)
+                proposed_actions.append({
+                    "action": name,
+                    "params": inputs,
+                    "affected_animals": affected,
+                    "summary": _action_summary(name, inputs, affected),
+                })
+                n_proposed_this_turn += 1
+                print(f"[Agent] PROPOSED {name} (affected={len(affected)}) — awaiting UI confirm")
                 result = {
-                    "pending": True,
+                    "status": "awaiting_confirmation",
                     "message": (
-                        "Bu amal foydalanuvchi tasdigini kutmoqda. "
-                        "Foydalanuvchiga nima qilmoqchi ekanligingizni aniq, qisqa va oddiy matnda tushuntiring. "
-                        "Masalan: 'Hamroni Sogʻlom deb belgilayman. Tasdiqlaysizmi?' "
-                        "MUHIM: markdown belgilari ishlatmang."
+                        "Bu amal foydalanuvchiga tasdiqlash KARTASI ko'rinishida ko'rsatiladi. "
+                        "Foydalanuvchiga nima qilmoqchi ekaningizni QISQA, bir jumlada, oddiy tabiiy "
+                        "tilda ayting. Amal Tasdiqlash tugmasi bosilgach bajariladi — "
+                        "'saqlab bo'lmadi' yoki 'xatolik' DEMANG."
                     ),
                 }
+            elif name in WRITE_TOOLS and is_emergency:
+                # Emergency (life-threatening): execute immediately, no confirm delay.
+                result = await _execute_tool(name, inputs, farm_id)
+                n_executed_this_turn += 1
+                data_saved[name] = result
             else:
-                # Execute normally
+                # READ tool — execute immediately.
                 result = await _execute_tool(name, inputs, farm_id)
                 n_executed_this_turn += 1
 
                 # ── Auto-pin animal on successful lookup ─────────────────────
-                if name in _ANIMAL_LOOKUP_TOOLS and result.get("found") is not False:
+                if name in _ANIMAL_LOOKUP_TOOLS and isinstance(result, dict) and result.get("found") is not False:
                     new_pin = result.get("ear_tag")
                     if new_pin and new_pin != pinned_animal:
                         pinned_animal = new_pin
@@ -779,13 +824,6 @@ async def run_agent(
                         except Exception as pin_exc:
                             print(f"[Agent] WARNING: Could not save pin: {pin_exc}")
 
-                if name in (
-                    "add_health_case", "update_animal_status", "update_animal_info",
-                    "log_vaccination", "log_bulk_vaccination", "log_weight",
-                    "log_milk", "record_event", "close_case",
-                ):
-                    data_saved[name] = result
-
             fr_parts.append(
                 types.Part.from_function_response(
                     name=name, response=_as_response_dict(result)
@@ -793,14 +831,14 @@ async def run_agent(
             )
 
         print(f"[Agent] Turn summary: {len(function_calls)} detected, "
-              f"{n_queued_this_turn} queued, {n_executed_this_turn} executed")
+              f"{n_proposed_this_turn} proposed, {n_executed_this_turn} executed")
 
         contents.append(types.Content(role="user", parts=fr_parts))
         response = await client.aio.models.generate_content(
             model=MODEL, contents=contents, config=gen_config
         )
         print(f"[Agent] (loop) function_calls={len(response.function_calls or [])} "
-              f"write_intercepted={write_intercepted}")
+              f"proposed_so_far={len(proposed_actions)}")
 
     final_text = (response.text or "").strip()
     if not final_text:
@@ -823,6 +861,7 @@ async def run_agent(
         "tools_called": tools_called_names,
         "conversation_id": conversation_id,
         "data_saved": data_saved,
+        "proposed_actions": proposed_actions,
         "is_emergency": is_emergency,
         "pinned_animal": pinned_animal,
     }

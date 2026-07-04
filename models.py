@@ -11,12 +11,29 @@ class ChatRequest(BaseModel):
     vet_mode: bool = False
 
 
+class ProposedAction(BaseModel):
+    action: str
+    params: Dict[str, Any] = {}
+    affected_animals: List[str] = []
+    summary: str = ""
+
+
 class ChatResponse(BaseModel):
     response: str
     conversation_id: str
     vet_mode: bool
     tools_called: List[str]
     data_saved: Dict[str, Any] = {}
+    # Phase 1: write tools are PROPOSED, not executed. The app renders a confirm
+    # card and calls /confirm-action to actually run them.
+    proposed_actions: List[ProposedAction] = []
+
+
+class ConfirmActionRequest(BaseModel):
+    farm_id: str
+    action: str
+    params: Dict[str, Any] = {}
+    conversation_id: Optional[str] = None
 
 
 class SyncRequest(BaseModel):

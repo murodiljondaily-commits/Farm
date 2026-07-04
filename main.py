@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest
+from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo
 from tools import close_case as close_case_tool
@@ -352,6 +352,7 @@ async def chat(req: ChatRequest):
             vet_mode=result["vet_mode"],
             tools_called=result["tools_called"],
             data_saved=result.get("data_saved", {}),
+            proposed_actions=result.get("proposed_actions", []),
         )
     except Exception as exc:
         msg = str(exc)
@@ -369,6 +370,35 @@ async def chat(req: ChatRequest):
                 data_saved={},
             )
         raise HTTPException(status_code=500, detail=msg)
+
+
+@app.post("/confirm-action")
+async def confirm_action(req: ConfirmActionRequest):
+    """Phase 1: actually execute a write tool the user confirmed from a card.
+    Returns the tool result plus the current state of any affected animals so the
+    app can update local SQLite directly (Phase 2) without a full re-sync."""
+    from agent import _execute_tool, _affected_animals
+    try:
+        result = await _execute_tool(req.action, dict(req.params or {}), req.farm_id)
+        print(f"[/confirm-action] {req.action} → {str(result)[:150]}")
+
+        # Gather updated animal records for the affected ear tags (for live UI sync).
+        updated_animals = []
+        for tag in _affected_animals(req.action, req.params or {}):
+            a = await firestore_db.get_animal(req.farm_id, tag)
+            if a:
+                updated_animals.append(a)
+
+        ok = not (isinstance(result, dict) and result.get("success") is False)
+        return {
+            "success": ok,
+            "action": req.action,
+            "result": result,
+            "updated_animals": updated_animals,
+        }
+    except Exception as exc:
+        print(f"[/confirm-action] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 # ─── Photo analysis + upload ──────────────────────────────────────
