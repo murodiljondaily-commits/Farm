@@ -537,14 +537,32 @@ async def sync_animals(farm_id: str, req: SyncAnimalsRequest):
     """Push all animals from Flutter SQLite into Firestore so the AI can see them."""
     try:
         upserted = 0
+        incoming: set[str] = set()
         for animal in req.animals:
             ear_tag = animal.get("ear_tag", "").strip()
             if not ear_tag:
                 continue
             print(f"[sync-animals] farm={farm_id} ear_tag={ear_tag}")
             await firestore_db.update_animal(farm_id, ear_tag, animal)
+            incoming.add(ear_tag)
             upserted += 1
-        return {"synced": upserted, "farm_id": farm_id}
+
+        # Reconcile: the app sends its FULL live herd (it excludes deleted and
+        # dead/sold animals). Any animal still in Firestore but NOT in this
+        # payload was deleted or marked dead in the app — remove it so the AI's
+        # counts match the app UI. Guard: only reconcile when we actually
+        # received animals, so an accidental empty POST can't wipe the farm.
+        removed = 0
+        if incoming:
+            existing = await firestore_db.get_all_animals(farm_id)
+            for a in existing:
+                tag = a.get("ear_tag")
+                if tag and tag not in incoming:
+                    print(f"[sync-animals] removing stale/dead animal {tag}")
+                    await firestore_db.delete_animal(farm_id, tag)
+                    removed += 1
+
+        return {"synced": upserted, "removed": removed, "farm_id": farm_id}
     except Exception as exc:
         print(f"[sync-animals] ERROR: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))

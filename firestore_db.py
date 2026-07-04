@@ -163,6 +163,22 @@ async def update_animal(farm_id: str, ear_tag: str, data: Dict) -> None:
     _run(_q)
 
 
+async def delete_animal(farm_id: str, ear_tag: str) -> None:
+    def _q():
+        get_db().collection("farms").document(farm_id).collection("animals").document(ear_tag).delete()
+    _run(_q)
+
+
+# Statuses that mean the animal has left the active herd. The Flutter app hides
+# these from its counts (and from the /sync-animals payload), so the backend
+# must not count them as live animals either.
+TERMINAL_STATUSES = {"oldi", "o'ldi", "soyildi", "sotildi"}
+
+
+def is_active_animal(a: Dict) -> bool:
+    return (a.get("status") or "").strip().lower() not in TERMINAL_STATUSES
+
+
 # ─── Cases ───────────────────────────────────────────────────────
 
 async def create_case(farm_id: str, case_data: Dict) -> str:

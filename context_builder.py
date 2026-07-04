@@ -37,7 +37,10 @@ def _days_since(iso: str) -> int:
 async def build_farm_context(farm_id: str) -> str:
     now = datetime.now(timezone.utc)
     farm = await firestore_db.get_farm(farm_id)
-    animals = await firestore_db.get_all_animals(farm_id)
+    all_animals = await firestore_db.get_all_animals(farm_id)
+    # Only show the live herd to the AI — dead/sold animals must not be counted
+    # or listed, matching the app UI.
+    animals = [a for a in all_animals if firestore_db.is_active_animal(a)]
     active_cases = await firestore_db.get_active_cases(farm_id)
     recent_events = await firestore_db.get_recent_events(farm_id, days=7)
 

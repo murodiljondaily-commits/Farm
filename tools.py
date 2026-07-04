@@ -29,7 +29,10 @@ def _current_season() -> str:
 # ─── 1. get_farm_stats ────────────────────────────────────────────
 
 async def get_farm_stats(farm_id: str) -> Dict:
-    animals = await firestore_db.get_all_animals(farm_id)
+    all_animals = await firestore_db.get_all_animals(farm_id)
+    # Count only the live herd — exclude dead/sold/slaughtered so the total
+    # matches what the farmer sees in the app UI.
+    animals = [a for a in all_animals if firestore_db.is_active_animal(a)]
     active_cases = await firestore_db.get_active_cases(farm_id)
 
     by_species: Dict[str, int] = {}
