@@ -506,15 +506,63 @@ async def diagnose_photo(
         except Exception as up_exc:
             print(f"[/diagnose-photo] WARNING: upload_photo failed (non-fatal): {up_exc}")
 
+        # ── Persist the diagnosis so it isn't lost ────────────────────────────
+        # (1) Always record a farm event so Sonya remembers it and it shows on
+        #     the timeline — even when the photo isn't tied to a specific animal.
+        # (2) If an ear_tag IS given and the finding is significant, open a
+        #     health case for that animal (mirrors the /photo flow).
+        diagnosis = analysis.get("probable_diagnosis", "") or "Noma'lum"
+        severity = analysis.get("severity", "low")
+        visual = analysis.get("visual_findings", "")
+        result_case_id: Optional[str] = None
+        event_id: Optional[str] = None
+        try:
+            name = animal.get("name", ear_tag) if animal else (ear_tag or "?")
+            event_id = await firestore_db.create_event(farm_id, {
+                "event_type": "photo_diagnosis",
+                "ear_tag": ear_tag,
+                "data": {
+                    "diagnosis": diagnosis,
+                    "severity": severity,
+                    "visual_findings": visual,
+                    "confidence": analysis.get("confidence", 0),
+                    "photo_url": photo_url,
+                },
+                "ai_summary": f"Rasm tahlili{f' — {name}' if ear_tag else ''}: {diagnosis} ({severity})",
+            })
+            print(f"[/diagnose-photo] event recorded: {event_id}")
+
+            if ear_tag and severity in ("medium", "high", "emergency"):
+                from tools import add_health_case
+                case_result = await add_health_case(
+                    farm_id=farm_id,
+                    ear_tag=ear_tag,
+                    symptoms=[visual] if visual else [],
+                    body_part=analysis.get("which_leg_or_part", body_part or "noma'lum"),
+                    severity=severity,
+                    ai_diagnosis=diagnosis,
+                    confidence=analysis.get("confidence", 50),
+                    first_aid=analysis.get("immediate_actions", []),
+                    photo_urls=[photo_url] if photo_url else [],
+                )
+                # add_health_case returns case_id on success, or existing_case_id
+                # if a case was already open for this animal.
+                result_case_id = case_result.get("case_id") or case_result.get("existing_case_id")
+                print(f"[/diagnose-photo] case: {case_result}")
+        except Exception as save_exc:
+            print(f"[/diagnose-photo] WARNING: persist failed (non-fatal): {save_exc}")
+
         return {
-            "assessment": analysis.get("probable_diagnosis", ""),
-            "visual_findings": analysis.get("visual_findings", ""),
+            "assessment": diagnosis,
+            "visual_findings": visual,
             "first_aid": analysis.get("immediate_actions", []),
             "confidence": analysis.get("confidence", 0),
-            "severity": analysis.get("severity", "low"),
+            "severity": severity,
             "photo_url": photo_url,
-            "escalate_to_vet": False,
+            "escalate_to_vet": severity in ("high", "emergency"),
             "follow_up_in_days": 2,
+            "case_id": result_case_id,
+            "event_id": event_id,
         }
     except Exception as exc:
         print(f"[/diagnose-photo] ERROR: {exc}")
