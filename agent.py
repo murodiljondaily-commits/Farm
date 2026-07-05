@@ -501,17 +501,18 @@ def _missing_required(name: str, inputs: Dict) -> List[str]:
 # Phase 4: pull Sonya's confidence % out of her prose so the app can render it as
 # a styled badge instead of inline text. Only strips confidence-labelled numbers
 # (never a clinical figure like "10% suvsizlanish").
+_NUM = r'\d{1,3}(?:[.,]\d+)?'
 _CONF_FIND = [
-    re.compile(r'ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*(\d{1,3})\s*%', re.IGNORECASE),
-    re.compile(r'(\d{1,3})\s*%\s*ishonch', re.IGNORECASE),
-    re.compile(r'уверенност\w*\s*[:\-]?\s*(\d{1,3})\s*%', re.IGNORECASE),
-    re.compile(r'confidence\s*[:\-]?\s*(\d{1,3})\s*%', re.IGNORECASE),
+    re.compile(rf'ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
+    re.compile(rf'({_NUM})\s*%\s*ishonch', re.IGNORECASE),
+    re.compile(rf'уверенност\w*\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
+    re.compile(rf'confidence\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
 ]
 _CONF_STRIP = [
-    re.compile(r'[\(\[]?\s*ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*\d{1,3}\s*%\s*[\.\)\]]?', re.IGNORECASE),
-    re.compile(r'[\(\[]?\s*\d{1,3}\s*%\s*ishonch\w*\s*[\.\)\]]?', re.IGNORECASE),
-    re.compile(r'[\(\[]?\s*уверенност\w*\s*[:\-]?\s*\d{1,3}\s*%\s*[\.\)\]]?', re.IGNORECASE),
-    re.compile(r'[\(\[]?\s*confidence\s*[:\-]?\s*\d{1,3}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(rf'[\(\[]?\s*ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(rf'[\(\[]?\s*{_NUM}\s*%\s*ishonch\w*\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(rf'[\(\[]?\s*уверенност\w*\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(rf'[\(\[]?\s*confidence\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),
 ]
 
 
@@ -520,7 +521,7 @@ def _extract_confidence(text: str):
     for pat in _CONF_FIND:
         m = pat.search(text)
         if m:
-            conf = max(0, min(100, int(m.group(1))))
+            conf = max(0, min(100, int(round(float(m.group(1).replace(',', '.'))))))
             break
     if conf is None:
         return text, 0
@@ -955,6 +956,21 @@ async def run_agent(
         final_text = (response.text or "").strip()
     except Exception:
         final_text = ""
+
+    # flash-lite often returns EMPTY text on the turn right after a tool result.
+    # If we ran tools (have data to report) but got no text and nothing to
+    # confirm, nudge the model once to actually write the answer.
+    if not final_text and tools_called_names and not proposed_actions:
+        print("[Agent] empty text after tools — nudging for a written answer")
+        contents.append(types.Content(role="user", parts=[types.Part(text=(
+            "Yuqoridagi natijaga asoslanib, foydalanuvchiga QISQA, oddiy o'zbek "
+            "tilida javob matnini yozing. Tool CHAQIRMANG."))]))
+        try:
+            response = await _generate(contents, gen_config)
+            final_text = (response.text or "").strip()
+        except Exception:
+            final_text = ""
+
     # Phase 4: lift the confidence % out of the prose into a structured field.
     final_text, confidence = _extract_confidence(final_text)
     if not final_text:
