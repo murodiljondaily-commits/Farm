@@ -78,8 +78,16 @@ async def _generate(contents, config):
                 continue
             raise
         last = resp
-        # Good response = has text to show OR tool calls to run.
-        if (resp.text or "").strip() or resp.function_calls:
+        # Good response = tool calls to run, OR text to show. NOTE: resp.text
+        # RAISES when the response is a function_call part, so check calls first
+        # and guard the .text access.
+        if resp.function_calls:
+            return resp
+        try:
+            has_text = bool((resp.text or "").strip())
+        except Exception:
+            has_text = False
+        if has_text:
             return resp
         if attempt < 2:
             await asyncio.sleep(0.8)
@@ -943,7 +951,10 @@ async def run_agent(
         print(f"[Agent] (loop) function_calls={len(response.function_calls or [])} "
               f"proposed_so_far={len(proposed_actions)}")
 
-    final_text = (response.text or "").strip()
+    try:
+        final_text = (response.text or "").strip()
+    except Exception:
+        final_text = ""
     # Phase 4: lift the confidence % out of the prose into a structured field.
     final_text, confidence = _extract_confidence(final_text)
     if not final_text:
