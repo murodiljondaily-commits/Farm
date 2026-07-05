@@ -27,6 +27,8 @@ class ChatResponse(BaseModel):
     # Phase 1: write tools are PROPOSED, not executed. The app renders a confirm
     # card and calls /confirm-action to actually run them.
     proposed_actions: List[ProposedAction] = []
+    # Phase 4: confidence % lifted out of the text so the app shows a badge.
+    confidence: int = 0
 
 
 class ConfirmActionRequest(BaseModel):

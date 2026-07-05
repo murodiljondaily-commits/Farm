@@ -1,6 +1,8 @@
 import os
 import json
+import re
 import uuid
+from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from google import genai
@@ -437,6 +439,63 @@ def _action_summary(name: str, inputs: Dict, affected: List[str]) -> str:
     return f"{name} amalini bajarish."
 
 
+# Phase 3: fields Sonya MUST have before proposing a write. If missing, she asks
+# the farmer in plain text first (no card until complete). Only fields a farmer
+# would actually forget — targeting + the key value — are listed; date defaults
+# to today.
+_REQUIRED_FIELDS = {
+    "log_vaccination": ["ear_tag", "vaccine_name"],
+    "log_bulk_vaccination": ["ear_tags", "vaccine_name"],
+    "log_weight": ["ear_tag", "weight_kg"],
+    "log_milk": ["liters"],
+    "update_animal_status": ["ear_tag", "new_status"],
+    "close_case": ["case_id", "outcome"],
+}
+
+
+def _missing_required(name: str, inputs: Dict) -> List[str]:
+    missing = []
+    for f in _REQUIRED_FIELDS.get(name, []):
+        v = inputs.get(f)
+        if v is None or (isinstance(v, str) and not v.strip()) or (isinstance(v, (list, dict)) and not v):
+            missing.append(f)
+    return missing
+
+
+# Phase 4: pull Sonya's confidence % out of her prose so the app can render it as
+# a styled badge instead of inline text. Only strips confidence-labelled numbers
+# (never a clinical figure like "10% suvsizlanish").
+_CONF_FIND = [
+    re.compile(r'ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*(\d{1,3})\s*%', re.IGNORECASE),
+    re.compile(r'(\d{1,3})\s*%\s*ishonch', re.IGNORECASE),
+    re.compile(r'уверенност\w*\s*[:\-]?\s*(\d{1,3})\s*%', re.IGNORECASE),
+    re.compile(r'confidence\s*[:\-]?\s*(\d{1,3})\s*%', re.IGNORECASE),
+]
+_CONF_STRIP = [
+    re.compile(r'[\(\[]?\s*ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*\d{1,3}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(r'[\(\[]?\s*\d{1,3}\s*%\s*ishonch\w*\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(r'[\(\[]?\s*уверенност\w*\s*[:\-]?\s*\d{1,3}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(r'[\(\[]?\s*confidence\s*[:\-]?\s*\d{1,3}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+]
+
+
+def _extract_confidence(text: str):
+    conf = None
+    for pat in _CONF_FIND:
+        m = pat.search(text)
+        if m:
+            conf = max(0, min(100, int(m.group(1))))
+            break
+    if conf is None:
+        return text, 0
+    clean = text
+    for pat in _CONF_STRIP:
+        clean = pat.sub('', clean)
+    clean = re.sub(r'\s{2,}', ' ', clean).strip()
+    clean = clean.strip('—-•·:；;, ').strip()
+    return clean, conf
+
+
 # ── Confirmation keywords ─────────────────────────────────────────────────────
 
 _CONFIRM_KW = [
@@ -465,6 +524,7 @@ Sizning vazifangiz:
 6. HECH QACHON "veterinarga murojaat qiling" deb TUGAMANG — SIZ veterinarsiz
 7. Ishonch darajangizni DOIM ko'rsating (X%)
 8. Favqulodda holatlarda: DARHOL harakatlaning, keyin tushuntiring
+9. Amalni (emlash, vazn, holat, kasallik) bajarishdan OLDIN kerakli ma'lumot yetishmasa — masalan vaksina nomi, yangi holat, vazn raqami — AVVAL foydalanuvchidan oddiy tilda SO'RANG. Barcha kerakli ma'lumot to'planganidan KEYINGINA tool chaqiring. Sana aytilmasa "bugun" deb oling.
 
 HAYVON PINNING (MUHIM):
 - Suhbat davomida bir hayvon aniqlangandan so'ng, u "pinned" (mahkamlangan) hayvon bo'ladi
@@ -779,29 +839,47 @@ async def run_agent(
                 except Exception as pin_exc:
                     print(f"[Agent] WARNING: Could not save pin for {pinned_animal!r}: {pin_exc}")
 
-            # ── Phase 1: PROPOSE writes, EXECUTE reads ────────────────────────
+            # ── Phase 1+3: PROPOSE writes (after gathering required info) ─────
             if name in WRITE_TOOLS and not is_emergency:
-                # Do NOT run the mutation. Return it as a proposed_action so the
-                # app shows a Confirm card; it runs later via /confirm-action.
-                affected = _affected_animals(name, inputs)
-                proposed_actions.append({
-                    "action": name,
-                    "params": inputs,
-                    "affected_animals": affected,
-                    "summary": _action_summary(name, inputs, affected),
-                })
-                n_proposed_this_turn += 1
-                print(f"[Agent] PROPOSED {name} (affected={len(affected)}) — awaiting UI confirm")
-                result = {
-                    "status": "awaiting_confirmation",
-                    "message": (
-                        "Amal HALI BAJARILMADI — foydalanuvchiga tasdiqlash KARTASI chiqadi. "
-                        "Nima qilmoqchi ekaningizni QISQA, bir jumlada, KELASI zamonda ayting "
-                        "(masalan: 'h001 vaznini 250 kg qilib yozaman — tasdiqlang'). "
-                        "'belgilandi', 'saqlandi', 'bajarildi' kabi O'TGAN zamon SO'ZLARINI ISHLATMANG. "
-                        "'saqlab bo'lmadi' yoki 'xatolik' ham DEMANG."
-                    ),
-                }
+                # Default the vaccination date to today so we don't nag for it.
+                if name in ("log_vaccination", "log_bulk_vaccination") and not inputs.get("date"):
+                    inputs["date"] = datetime.now(timezone.utc).date().isoformat()
+
+                # Phase 3: if required info is missing, ASK — don't propose yet.
+                missing = _missing_required(name, inputs)
+                if missing:
+                    print(f"[Agent] NEEDS INFO for {name}: {missing} — asking user")
+                    result = {
+                        "status": "needs_info",
+                        "missing": missing,
+                        "message": (
+                            f"Amal uchun quyidagi ma'lumot yetishmayapti: {', '.join(missing)}. "
+                            "Foydalanuvchidan buni oddiy tabiiy tilda SO'RANG. "
+                            "Amalni HALI taklif qilmang, TASDIQLASH kartasini chiqarmang."
+                        ),
+                    }
+                else:
+                    # Do NOT run the mutation. Return it as a proposed_action so
+                    # the app shows a Confirm card; it runs via /confirm-action.
+                    affected = _affected_animals(name, inputs)
+                    proposed_actions.append({
+                        "action": name,
+                        "params": inputs,
+                        "affected_animals": affected,
+                        "summary": _action_summary(name, inputs, affected),
+                    })
+                    n_proposed_this_turn += 1
+                    print(f"[Agent] PROPOSED {name} (affected={len(affected)}) — awaiting UI confirm")
+                    result = {
+                        "status": "awaiting_confirmation",
+                        "message": (
+                            "Amal HALI BAJARILMADI — foydalanuvchiga tasdiqlash KARTASI chiqadi. "
+                            "Nima qilmoqchi ekaningizni QISQA, bir jumlada, KELASI zamonda ayting "
+                            "(masalan: 'h001 vaznini 250 kg qilib yozaman — tasdiqlang'). "
+                            "'belgilandi', 'saqlandi', 'bajarildi' kabi O'TGAN zamon SO'ZLARINI ISHLATMANG. "
+                            "'saqlab bo'lmadi' yoki 'xatolik' ham DEMANG."
+                        ),
+                    }
             elif name in WRITE_TOOLS and is_emergency:
                 # Emergency (life-threatening): execute immediately, no confirm delay.
                 result = await _execute_tool(name, inputs, farm_id)
@@ -842,6 +920,8 @@ async def run_agent(
               f"proposed_so_far={len(proposed_actions)}")
 
     final_text = (response.text or "").strip()
+    # Phase 4: lift the confidence % out of the prose into a structured field.
+    final_text, confidence = _extract_confidence(final_text)
     if not final_text:
         # A proposed action carries its own card, so never show the error
         # fallback next to it (that read as contradictory).
@@ -866,6 +946,7 @@ async def run_agent(
         "conversation_id": conversation_id,
         "data_saved": data_saved,
         "proposed_actions": proposed_actions,
+        "confidence": confidence,
         "is_emergency": is_emergency,
         "pinned_animal": pinned_animal,
     }

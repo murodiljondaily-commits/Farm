@@ -353,6 +353,7 @@ async def chat(req: ChatRequest):
             tools_called=result["tools_called"],
             data_saved=result.get("data_saved", {}),
             proposed_actions=result.get("proposed_actions", []),
+            confidence=result.get("confidence", 0),
         )
     except Exception as exc:
         msg = str(exc)
