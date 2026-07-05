@@ -40,13 +40,18 @@ async def get_farm_stats(farm_id: str) -> Dict:
         sp = a.get("species", "noma'lum")
         by_species[sp] = by_species.get(sp, 0) + 1
 
-    overdue = sum(
-        1 for a in animals
-        if a.get("last_vaccination")
-        and (datetime.now(timezone.utc) - datetime.fromisoformat(
-            a["last_vaccination"].replace("Z", "+00:00")
-        )).days > 365
-    )
+    def _overdue(lv: str) -> bool:
+        # last_vaccination may be a date-only string ("2026-07-05") → naive.
+        # Assume UTC so we never subtract naive from aware (crashed get_farm_stats).
+        try:
+            dt = datetime.fromisoformat(lv.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return (datetime.now(timezone.utc) - dt).days > 365
+        except Exception:
+            return False
+
+    overdue = sum(1 for a in animals if a.get("last_vaccination") and _overdue(a["last_vaccination"]))
 
     events = await firestore_db.get_recent_events(farm_id, days=1)
     last_activity = events[0]["timestamp"][:10] if events else "noma'lum"
