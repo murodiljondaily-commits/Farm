@@ -1,4 +1,5 @@
 import os
+import asyncio
 import json
 import re
 import uuid
@@ -56,6 +57,33 @@ def _thinking_off_kwargs() -> Dict[str, Any]:
 
 
 _THINKING_OFF = _thinking_off_kwargs()
+
+
+async def _generate(contents, config):
+    """Call Gemini with retries. gemini-2.5-flash-lite intermittently (a) 503s
+    under load and (b) returns an EMPTY response (no text AND no function calls)
+    after a tool turn — both surfaced to farmers as errors. Retry a few times so
+    a single flaky call doesn't break the reply."""
+    last = None
+    for attempt in range(3):
+        try:
+            resp = await client.aio.models.generate_content(
+                model=MODEL, contents=contents, config=config
+            )
+        except Exception as exc:
+            msg = str(exc).lower()
+            transient = "503" in msg or "unavailable" in msg or "overloaded" in msg
+            if transient and attempt < 2:
+                await asyncio.sleep(1.5 * (attempt + 1))
+                continue
+            raise
+        last = resp
+        # Good response = has text to show OR tool calls to run.
+        if (resp.text or "").strip() or resp.function_calls:
+            return resp
+        if attempt < 2:
+            await asyncio.sleep(0.8)
+    return last
 
 
 def _as_response_dict(result: Any) -> Dict:
@@ -791,9 +819,7 @@ async def run_agent(
 
     # ── Agent loop ────────────────────────────────────────────────────────────
     proposed_actions: List[Dict[str, Any]] = []
-    response = await client.aio.models.generate_content(
-        model=MODEL, contents=contents, config=gen_config
-    )
+    response = await _generate(contents, gen_config)
     print(f"[Agent] initial function_calls={len(response.function_calls or [])}")
 
     _loop_guard = 0
@@ -913,9 +939,7 @@ async def run_agent(
               f"{n_proposed_this_turn} proposed, {n_executed_this_turn} executed")
 
         contents.append(types.Content(role="user", parts=fr_parts))
-        response = await client.aio.models.generate_content(
-            model=MODEL, contents=contents, config=gen_config
-        )
+        response = await _generate(contents, gen_config)
         print(f"[Agent] (loop) function_calls={len(response.function_calls or [])} "
               f"proposed_so_far={len(proposed_actions)}")
 

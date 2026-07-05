@@ -361,7 +361,8 @@ async def chat(req: ChatRequest):
         # Gemini quota / rate-limit exhausted — show the farmer a clear message
         # instead of a hard error (the underlying fix is billing/quota on the key).
         low = msg.lower()
-        if "resource_exhausted" in low or "429" in low or "quota" in low:
+        if ("resource_exhausted" in low or "429" in low or "quota" in low
+                or "503" in low or "unavailable" in low or "overloaded" in low):
             return ChatResponse(
                 response="Kechirasiz, AI xizmati hozircha band (limit tugadi). "
                          "Birozdan so'ng qayta urinib ko'ring yoki administrator bilan bog'laning.",
