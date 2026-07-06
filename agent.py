@@ -519,14 +519,15 @@ def _missing_required(name: str, inputs: Dict) -> List[str]:
 # a styled badge instead of inline text. Only strips confidence-labelled numbers
 # (never a clinical figure like "10% suvsizlanish").
 _NUM = r'\d{1,3}(?:[.,]\d+)?'
+# "ishonch\w*" absorbs Uzbek suffixes: Ishonchim, ishonchi, ishonch darajasi…
 _CONF_FIND = [
-    re.compile(rf'ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
+    re.compile(rf'ishonch\w*(?:\s*daraja\w*)?\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
     re.compile(rf'({_NUM})\s*%\s*ishonch', re.IGNORECASE),
     re.compile(rf'уверенност\w*\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
     re.compile(rf'confidence\s*[:\-]?\s*({_NUM})\s*%', re.IGNORECASE),
 ]
 _CONF_STRIP = [
-    re.compile(rf'[\(\[]?\s*ishonch(?:\s*daraja\w*)?\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),
+    re.compile(rf'[\(\[]?\s*ishonch\w*(?:\s*daraja\w*)?\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),
     re.compile(rf'[\(\[]?\s*{_NUM}\s*%\s*ishonch\w*\s*[\.\)\]]?', re.IGNORECASE),
     re.compile(rf'[\(\[]?\s*уверенност\w*\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),
     re.compile(rf'[\(\[]?\s*confidence\s*[:\-]?\s*{_NUM}\s*%\s*[\.\)\]]?', re.IGNORECASE),

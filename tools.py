@@ -81,6 +81,9 @@ async def get_animal_tool(farm_id: str, ear_tag: str) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     history = await firestore_db.get_animal_history(farm_id, animal["ear_tag"])
     animal["recent_cases"] = history["cases"][:3]
@@ -108,6 +111,9 @@ async def add_health_case(
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     # Duplicate guard: don't open a new case if one is already active for this animal
     active = await firestore_db.get_active_cases(farm_id)
@@ -191,6 +197,9 @@ async def update_animal_status(farm_id: str, ear_tag: str, new_status: str) -> D
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     old_status = animal.get("status", "")
     await firestore_db.update_animal(farm_id, ear_tag, {"status": new_status})
@@ -219,6 +228,9 @@ async def log_vaccination(
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     await firestore_db.update_animal(farm_id, ear_tag, {"last_vaccination": date})
     event_id = await firestore_db.create_event(farm_id, {
@@ -240,6 +252,9 @@ async def log_weight(farm_id: str, ear_tag: str, weight_kg: float) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     old_weight = animal.get("weight_current", 0) or 0
     change = round(weight_kg - old_weight, 1) if old_weight else 0.0
@@ -291,6 +306,9 @@ async def get_animal_history_tool(farm_id: str, ear_tag: str) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
     history = await firestore_db.get_animal_history(farm_id, animal["ear_tag"])
     return {
         "animal": animal,
@@ -310,6 +328,9 @@ async def get_animal_full_record_tool(farm_id: str, ear_tag: str) -> Dict:
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Bu quloq raqamli hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     history = await firestore_db.get_animal_history(farm_id, animal["ear_tag"])
     active_cases = [c for c in history["cases"] if not c.get("closed_at")]
@@ -521,6 +542,9 @@ async def update_animal_info(
     animal = await firestore_db.get_animal(farm_id, ear_tag)
     if not animal:
         return {"found": False, "message": f"Hayvon topilmadi: {ear_tag}"}
+    # Fuzzy lookup may have matched by NAME ("Guli") — all writes must use the
+    # canonical doc id, else we'd create a ghost animal record.
+    ear_tag = animal.get("ear_tag") or ear_tag
 
     updates: Dict[str, Any] = {}
     changes: List[str] = []
