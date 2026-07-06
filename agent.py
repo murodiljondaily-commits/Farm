@@ -38,6 +38,11 @@ from tools import (
 # at ~1.2.0, whose ThinkingConfig lacks thinking_budget. Flash-Lite sidesteps
 # that entirely and is a fast, available model. (gemini-2.0-flash is retired.)
 MODEL = "gemini-2.5-flash-lite"
+# Fallbacks for when the primary 503s ("high demand" outages can last minutes
+# and killed real farmer chats). Probed 2026-07-06 while 2.5-flash-lite was
+# DOWN: gemini-flash-lite-latest was UP (thinking off, separate serving pool);
+# gemini-2.5-flash also UP (thinks by default = slower/pricier, last resort).
+FALLBACK_MODELS = ("gemini-flash-lite-latest", "gemini-2.5-flash")
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
 
@@ -60,38 +65,50 @@ _THINKING_OFF = _thinking_off_kwargs()
 
 
 async def _generate(contents, config):
-    """Call Gemini with retries. gemini-2.5-flash-lite intermittently (a) 503s
-    under load and (b) returns an EMPTY response (no text AND no function calls)
-    after a tool turn — both surfaced to farmers as errors. Retry a few times so
-    a single flaky call doesn't break the reply."""
+    """Call Gemini with retries AND a model fallback chain. flash-lite
+    intermittently (a) 503s under load — sometimes for minutes — and (b) returns
+    an EMPTY response (no text AND no function calls) after a tool turn. Retry
+    each model a few times, then step down FALLBACK_MODELS so a Google-side
+    outage of one model never surfaces to the farmer as an error."""
     last = None
-    for attempt in range(3):
-        try:
-            resp = await client.aio.models.generate_content(
-                model=MODEL, contents=contents, config=config
-            )
-        except Exception as exc:
-            msg = str(exc).lower()
-            transient = "503" in msg or "unavailable" in msg or "overloaded" in msg
-            if transient and attempt < 2:
-                await asyncio.sleep(1.5 * (attempt + 1))
-                continue
-            raise
-        last = resp
-        # Good response = tool calls to run, OR text to show. NOTE: resp.text
-        # RAISES when the response is a function_call part, so check calls first
-        # and guard the .text access.
-        if resp.function_calls:
-            return resp
-        try:
-            has_text = bool((resp.text or "").strip())
-        except Exception:
-            has_text = False
-        if has_text:
-            return resp
-        if attempt < 2:
-            await asyncio.sleep(0.8)
-    return last
+    last_exc = None
+    for model in (MODEL, *FALLBACK_MODELS):
+        for attempt in range(3):
+            try:
+                resp = await client.aio.models.generate_content(
+                    model=model, contents=contents, config=config
+                )
+            except Exception as exc:
+                msg = str(exc).lower()
+                if "503" in msg or "unavailable" in msg or "overloaded" in msg:
+                    last_exc = exc
+                    print(f"[Agent] {model} 503/unavailable (attempt {attempt + 1}/3)")
+                    await asyncio.sleep(1.2 * (attempt + 1))
+                    continue
+                if "404" in msg or "not_found" in msg or "not found" in msg:
+                    last_exc = exc
+                    print(f"[Agent] {model} not found — skipping to next model")
+                    break
+                raise
+            last = resp
+            if model != MODEL:
+                print(f"[Agent] reply served by FALLBACK model {model}")
+            # Good response = tool calls to run, OR text to show. NOTE: resp.text
+            # RAISES when the response is a function_call part, so check calls
+            # first and guard the .text access.
+            if resp.function_calls:
+                return resp
+            try:
+                if (resp.text or "").strip():
+                    return resp
+            except Exception:
+                pass
+            # Empty response — brief pause, retry same model.
+            await asyncio.sleep(0.6)
+        # attempts exhausted on this model → try the next one
+    if last is not None:
+        return last
+    raise last_exc if last_exc else RuntimeError("Gemini: all models failed")
 
 
 def _as_response_dict(result: Any) -> Dict:

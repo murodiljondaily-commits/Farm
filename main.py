@@ -358,14 +358,21 @@ async def chat(req: ChatRequest):
     except Exception as exc:
         msg = str(exc)
         print(f"[/chat] ERROR: {exc}")
-        # Gemini quota / rate-limit exhausted — show the farmer a clear message
-        # instead of a hard error (the underlying fix is billing/quota on the key).
+        # Show the farmer a clear message instead of a hard error. Two distinct
+        # cases: quota exhausted (429 — fix is billing/quota on the key) vs a
+        # temporary Google-side overload (503 — retry in a moment). Never call
+        # a 503 "limit tugadi": it misleads the user into thinking we ran out.
         low = msg.lower()
-        if ("resource_exhausted" in low or "429" in low or "quota" in low
-                or "503" in low or "unavailable" in low or "overloaded" in low):
+        friendly = None
+        if "resource_exhausted" in low or "429" in low or "quota" in low:
+            friendly = ("Kechirasiz, AI xizmati kunlik limitga yetdi. "
+                        "Administrator bilan bog'laning.")
+        elif "503" in low or "unavailable" in low or "overloaded" in low:
+            friendly = ("Kechirasiz, AI xizmati vaqtincha band. "
+                        "10-15 soniyadan so'ng qayta yuboring — ma'lumotlaringiz saqlanib qoladi.")
+        if friendly:
             return ChatResponse(
-                response="Kechirasiz, AI xizmati hozircha band (limit tugadi). "
-                         "Birozdan so'ng qayta urinib ko'ring yoki administrator bilan bog'laning.",
+                response=friendly,
                 conversation_id=req.conversation_id or "",
                 vet_mode=req.vet_mode,
                 tools_called=[],

@@ -9,6 +9,9 @@ from firebase_admin import storage as fb_storage
 
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
 MODEL = "gemini-2.5-flash-lite"  # see agent.py: thinking off by default, available
+# Same fallback chain as agent.py — flash-lite 503s ("high demand") for minutes
+# at a time; these alternates were observed UP during such an outage.
+FALLBACK_MODELS = ("gemini-flash-lite-latest", "gemini-2.5-flash")
 
 
 def _thinking_off_kwargs() -> Dict:
@@ -82,23 +85,41 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
   "which_leg_or_part": "aniq qaysi qism ko'rinmoqda"
 }}"""
 
-    response = await client.aio.models.generate_content(
-        model=MODEL,
-        contents=[
-            types.Content(
-                role="user",
-                parts=[
-                    types.Part.from_bytes(data=image_bytes, mime_type=media_type),
-                    types.Part(text=prompt),
-                ],
-            )
-        ],
-        config=types.GenerateContentConfig(
-            max_output_tokens=1024,
-            response_mime_type="application/json",
-            **_THINKING_OFF,
-        ),
+    contents = [
+        types.Content(
+            role="user",
+            parts=[
+                types.Part.from_bytes(data=image_bytes, mime_type=media_type),
+                types.Part(text=prompt),
+            ],
+        )
+    ]
+    config = types.GenerateContentConfig(
+        max_output_tokens=1024,
+        response_mime_type="application/json",
+        **_THINKING_OFF,
     )
+
+    response = None
+    last_exc = None
+    for model in (MODEL, *FALLBACK_MODELS):
+        try:
+            response = await client.aio.models.generate_content(
+                model=model, contents=contents, config=config
+            )
+            if model != MODEL:
+                print(f"[Storage] photo analysis served by FALLBACK model {model}")
+            break
+        except Exception as exc:
+            msg = str(exc).lower()
+            if ("503" in msg or "unavailable" in msg or "overloaded" in msg
+                    or "404" in msg or "not found" in msg):
+                last_exc = exc
+                print(f"[Storage] {model} unavailable — trying next model")
+                continue
+            raise
+    if response is None:
+        raise last_exc if last_exc else RuntimeError("Gemini: all models failed")
 
     text = response.text or ""
     clean = text.replace("```json", "").replace("```", "").strip()
