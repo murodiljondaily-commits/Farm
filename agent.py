@@ -64,6 +64,35 @@ def _thinking_off_kwargs() -> Dict[str, Any]:
 _THINKING_OFF = _thinking_off_kwargs()
 
 
+def _text_history(contents):
+    """Convert function_call / function_response parts into plain-text turns.
+    Needed when falling back to a THINKING model mid tool-loop: those reject
+    flash-lite's functionCall parts ("missing thought_signature", 400 — and our
+    SDK 1.2.0 predates thought signatures entirely). Text history is accepted
+    by every model and preserves the information."""
+    out = []
+    for c in contents:
+        pieces = []
+        for p in (getattr(c, "parts", None) or []):
+            if getattr(p, "text", None):
+                pieces.append(p.text)
+            elif getattr(p, "function_call", None):
+                fc = p.function_call
+                pieces.append(f"[TIZIM: {fc.name} tool chaqirildi, "
+                              f"args={dict(fc.args or {})}]")
+            elif getattr(p, "function_response", None):
+                fr = p.function_response
+                try:
+                    payload = json.dumps(fr.response, ensure_ascii=False, default=str)[:800]
+                except Exception:
+                    payload = str(fr.response)[:800]
+                pieces.append(f"[TIZIM: {fr.name} natijasi: {payload}]")
+        if pieces:
+            role = "model" if getattr(c, "role", "") == "model" else "user"
+            out.append(types.Content(role=role, parts=[types.Part(text="\n".join(pieces))]))
+    return out
+
+
 async def _generate(contents, config):
     """Call Gemini with retries AND a model fallback chain. flash-lite
     intermittently (a) 503s under load — sometimes for minutes — and (b) returns
@@ -73,10 +102,13 @@ async def _generate(contents, config):
     last = None
     last_exc = None
     for model in (MODEL, *FALLBACK_MODELS):
+        # Fallback models can't consume flash-lite's functionCall history —
+        # hand them an equivalent text-only transcript instead.
+        use_contents = contents if model == MODEL else _text_history(contents)
         for attempt in range(3):
             try:
                 resp = await client.aio.models.generate_content(
-                    model=model, contents=contents, config=config
+                    model=model, contents=use_contents, config=config
                 )
             except Exception as exc:
                 msg = str(exc).lower()
@@ -85,9 +117,11 @@ async def _generate(contents, config):
                     print(f"[Agent] {model} 503/unavailable (attempt {attempt + 1}/3)")
                     await asyncio.sleep(1.2 * (attempt + 1))
                     continue
-                if "404" in msg or "not_found" in msg or "not found" in msg:
+                if ("404" in msg or "not_found" in msg or "not found" in msg
+                        or "thought_signature" in msg):
                     last_exc = exc
-                    print(f"[Agent] {model} not found — skipping to next model")
+                    print(f"[Agent] {model} rejected request "
+                          f"({msg[:80]}) — skipping to next model")
                     break
                 raise
             last = resp
