@@ -991,11 +991,18 @@ async def run_agent(
 
     # Phase 4: lift the confidence % out of the prose into a structured field.
     final_text, confidence = _extract_confidence(final_text)
-    if not final_text:
-        # A proposed action carries its own card, so never show the error
-        # fallback next to it (that read as contradictory).
-        final_text = ("Quyidagi amalni tasdiqlang:" if proposed_actions
-                      else "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring.")
+
+    if proposed_actions:
+        # The confirm card carries the action; the text above it must never
+        # read as a failure. The model sometimes ignores the prompt and writes
+        # "saqlashda muammo bo'ldi" — override deterministically.
+        low_ft = final_text.lower()
+        _FAILURE_WORDS = ("muammo", "xatolik", "saqlab bo", "saqlanmadi",
+                          "bajarilmadi", "urinib ko", "tayyorlab bo")
+        if not final_text or any(w in low_ft for w in _FAILURE_WORDS):
+            final_text = "Quyidagi amalni tasdiqlang:"
+    elif not final_text:
+        final_text = "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring."
 
     await firestore_db.save_conversation_turn(
         farm_id, conversation_id, user_message, final_text, tools_called_names
