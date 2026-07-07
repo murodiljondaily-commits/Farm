@@ -78,19 +78,36 @@ def _text_history(contents):
                 pieces.append(p.text)
             elif getattr(p, "function_call", None):
                 fc = p.function_call
-                pieces.append(f"[TIZIM: {fc.name} tool chaqirildi, "
-                              f"args={dict(fc.args or {})}]")
+                # Framed as a narrative parenthetical, not a quotable tag —
+                # reduces (doesn't eliminate; see _strip_internal_leaks) the
+                # chance a model echoes this back verbatim as its own reply.
+                pieces.append(f"(ichki eslatma, foydalanuvchiga ko'rsatilmaydi: "
+                              f"{fc.name} funksiyasi chaqirildi, args={dict(fc.args or {})})")
             elif getattr(p, "function_response", None):
                 fr = p.function_response
                 try:
                     payload = json.dumps(fr.response, ensure_ascii=False, default=str)[:800]
                 except Exception:
                     payload = str(fr.response)[:800]
-                pieces.append(f"[TIZIM: {fr.name} natijasi: {payload}]")
+                pieces.append(f"(ichki eslatma, foydalanuvchiga ko'rsatilmaydi: "
+                              f"{fr.name} natijasi: {payload})")
         if pieces:
             role = "model" if getattr(c, "role", "") == "model" else "user"
             out.append(types.Content(role=role, parts=[types.Part(text="\n".join(pieces))]))
     return out
+
+
+def _config_for_model(base_config, model: str):
+    """gemini-2.5-flash THINKS by default and that's a genuine quality
+    advantage as a last-resort fallback (it's the whole reason it's smarter
+    than flash-lite) — never force thinking_budget=0 onto it. flash-lite
+    models keep thinking forced off (see _thinking_off_kwargs)."""
+    if model == "gemini-2.5-flash":
+        try:
+            return base_config.model_copy(update={"thinking_config": None})
+        except Exception:
+            return base_config
+    return base_config
 
 
 async def _generate(contents, config):
@@ -105,10 +122,11 @@ async def _generate(contents, config):
         # Fallback models can't consume flash-lite's functionCall history —
         # hand them an equivalent text-only transcript instead.
         use_contents = contents if model == MODEL else _text_history(contents)
+        per_model_config = _config_for_model(config, model)
         for attempt in range(3):
             try:
                 resp = await client.aio.models.generate_content(
-                    model=model, contents=use_contents, config=config
+                    model=model, contents=use_contents, config=per_model_config
                 )
             except Exception as exc:
                 msg = str(exc).lower()
@@ -537,6 +555,11 @@ _REQUIRED_FIELDS = {
     "log_milk": ["liters"],
     "update_animal_status": ["ear_tag", "new_status"],
     "close_case": ["case_id", "outcome"],
+    # Only the facts a FARMER must supply — ai_diagnosis/confidence/first_aid
+    # are things Sonya generates herself once she has real symptoms. Without
+    # this gate a vague report ("X kasal bo'lib qoldi") could produce a
+    # fabricated diagnosis instead of one clarifying question.
+    "add_health_case": ["ear_tag", "symptoms", "body_part"],
 }
 
 
@@ -585,6 +608,24 @@ def _extract_confidence(text: str):
     return clean, conf
 
 
+# A weaker fallback model can echo internal tool-call bookkeeping back
+# verbatim as its own reply instead of treating it as history context (seen
+# live: a farmer received the raw text "[TIZIM: search_rag tool chaqirildi,
+# args=...]"). The leaked args repr often contains its OWN "[" / "]" (e.g. a
+# symptoms_list), so a bracket-matched strip can't reliably find the true
+# closing bracket and can leave a mangled fragment behind. Detect-and-reject
+# the WHOLE reply instead — provably safe regardless of nesting — and let it
+# fall through to the existing empty-text fallback message. This also
+# protects conversation history, since a leak there would poison future turns.
+_TIZIM_MARKER_RE = re.compile(r'\[TIZIM:|ichki eslatma,', re.IGNORECASE)
+
+
+def _strip_internal_leaks(text: str) -> str:
+    if _TIZIM_MARKER_RE.search(text):
+        return ''
+    return text
+
+
 # ── Confirmation keywords ─────────────────────────────────────────────────────
 
 _CONFIRM_KW = [
@@ -606,8 +647,8 @@ SYSTEM_BASE = """Siz AgriVet ilovasining "Sonya" — Farg'ona vodiysidan 15 yill
 
 Sizning vazifangiz:
 1. Fermer aytgan har bir so'zni JIDDIY qabul qiling
-2. Hayvon muammosi haqida eshitsangiz — avval get_animal_full_record chaqiring, keyin harakat qiling
-3. Fermer hayvon muammosini TASVIRLASA — darhol klinik harakatlar boshla, buyruq yoki tasdiq kutma
+2. Hayvon muammosi haqida eshitsangiz — AVVAL get_animal_full_record chaqiring, SO'NG albatta HARAKAT qiling: faqat tarixni aytib TO'XTASH QAT'IYAN TAQIQLANADI
+3. Fermer hayvon muammosini ANIQ TASVIRLASA (belgi/tana qismi bor) — darhol klinik harakatlar boshla (search_rag → add_health_case), buyruq yoki tasdiq kutma. Tasvir XIRA bo'lsa (faqat "kasal", "yomon" — aniq belgi yo'q) — bitta aniqlashtiruvchi savol ber, keyin davom et
 4. Fermer "Men vetman/doktorman" desa — VET REJIMIGA o'ting
 5. Javob tili: foydalanuvchi tilini aniqlang (uz/ru) va shu tilda javob bering
 6. HECH QACHON "veterinarga murojaat qiling" deb TUGAMANG — SIZ veterinarsiz
@@ -636,7 +677,19 @@ Tool {{"success": true}} yoki {{"case_id": ...}} qaytarsa — klinik suhbatni da
 KASALLIK TRIGGER — add_health_case qachon chaqiriladi:
 Fermer hayvon muammosini TASVIRLASA trigger bo'ladi (belgilar, og'riq, o'zgarish, notanish ko'rinish).
 TRIGGER EMAS: "sog'lom deb belgilang", "yozib qo'y" — buyruq, klinik tasvir emas.
-TRIGGER BO'LADI: "Ko'zi shishib qolibdi", "Yemoqdan to'xtabdi", "Oyog'ini bosmoqda qiynalmoqda"
+
+ANIQ TASVIR (belgi yoki tana qismi bor) — masalan "Ko'zi shishib qolibdi",
+"Yemoqdan to'xtabdi", "Oyog'ini bosmoqda qiynalmoqda":
+Shu javobda ketma-ket chaqiring: search_rag → add_health_case. Qo'shimcha tasdiq SO'RAMANG.
+
+XIRA/UMUMIY TASVIR (faqat "kasal bo'lib qoldi", "yaxshi emas", "o'zini yomon
+tutyapti" — aniq belgi YO'Q) — masalan "Guli kasal bo'lib qolibdi":
+Case OCHMANG — aniq belgi/tana qismi bo'lmasa add_health_case ni to'g'ri
+to'ldirib bo'lmaydi (o'ylab topilgan tashxis xavfli). Buning o'rniga BITTA
+ANIQ savol so'rang: "Nima bezovta qilmoqda — ozib ketyaptimi, harorati
+bormi, yemoqdan to'xtadimi, qayerida og'riq bor?" Javob kelgach yuqoridagi
+ANIQ tartibga o'ting. Buni FAQAT o'qib "hozircha faol yoki tarixiy
+kasalligi yo'q" deb JAVOB BERIB TO'XTASH — QAT'IYAN TAQIQLANADI.
 
 QAYSI AMALLAR FONDA BAJARILADI:
 - add_health_case, update_animal_status (davolanmoqda/kritik), log_vaccination, log_weight, record_event, add_photo_to_case
@@ -665,11 +718,19 @@ close_case(case_id=..., outcome=..., recovery_days=..., vet_confirmed=...)
 
 MUHIM: close_case() ni to'liq ma'lumot bo'lmay CHAQIRMANG.
 
-MA'LUMOT O'QISH VA KASALLIK OCHISH TARTIBI:
-- Avval get_animal_full_record — taxmin qilmang
+MA'LUMOT O'QISH VA KASALLIK OCHISH TARTIBI — MAJBURIY, TO'XTASH TAQIQLANADI:
+- Avval get_animal_full_record — taxmin qilmang. Bu BIRINCHI qadam, OXIRGI qadam EMAS
 - active_cases mavjud bo'lsa — YANGI case OCHMANG, add_photo_to_case bilan ma'lumot qo'shing
 - Yangi kasallik bo'lsa — AVVAL search_rag (species + symptoms_list), KEYIN add_health_case
 - search_rag natija topsa — "O'xshash holatda..." deb tabiiy tilda xabarlang
+
+MUTLAQO TAQIQLANGAN XATTI-HARAKAT: fermer OXIRGI xabarida hayvon haqida
+YANGI muammo aytgan bo'lsa (masalan "X kasal bo'lib qolibdi", "yaxshi
+emas"), get_animal_full_record/get_animal_history natijasini FAQAT o'qib,
+"hayvon sog'lom, faol yoki tarixiy kasalligi yo'q" deb JAVOB BERIB TO'XTASH
+— QAT'IYAN TAQIQLANADI. Tozalik tarixi bugungi xabarni bekor qilmaydi —
+farmer aynan HOZIR muammo ko'rmoqda. Yuqoridagi KASALLIK TRIGGER tartibiga
+o'ting (aniq bo'lsa — harakat; xira bo'lsa — bitta savol).
 
 HOMILADORLIK VA MA'LUMOT YANGILASH:
 - Hayvon homiladorlik holati/oyi, ismi, zoti, jinsi, yoshi o'zgarganda: update_animal_info ishlating
@@ -1022,6 +1083,10 @@ async def run_agent(
             final_text = (response.text or "").strip()
         except Exception:
             final_text = ""
+
+    # Never let internal tool-call bookkeeping reach the farmer or get
+    # persisted to history (see _strip_internal_leaks docstring).
+    final_text = _strip_internal_leaks(final_text)
 
     # Phase 4: lift the confidence % out of the prose into a structured field.
     final_text, confidence = _extract_confidence(final_text)
