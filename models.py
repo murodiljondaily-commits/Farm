@@ -68,3 +68,7 @@ class TtsRequest(BaseModel):
 
 class AssignCaseRequest(BaseModel):
     ear_tag: str
+
+
+class UpdateCaseStatusRequest(BaseModel):
+    status: str

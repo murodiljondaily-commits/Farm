@@ -149,6 +149,7 @@ async def add_health_case(
         "outcome": None,
         "ai_model": "gemini-2.0-flash",
         "visual_findings": "",
+        "status": "open",
     }
     case_id = await firestore_db.create_case(farm_id, case_data)
 
@@ -214,6 +215,34 @@ async def update_animal_status(farm_id: str, ear_tag: str, new_status: str) -> D
         _now_str(), ear_tag, animal.get("name", ""), new_status,
     ])
     return {"success": True, "ear_tag": ear_tag, "new_status": new_status}
+
+
+# ─── 5b. update_case_status ──────────────────────────────────────
+
+async def update_case_status(farm_id: str, case_id: str, status: str) -> Dict:
+    """Set a case's status to 'davolanmoqda' (healing quick-action) or back to
+    'open'. Closing a case must go through close_case, not this tool."""
+    if status not in ("open", "davolanmoqda"):
+        return {"success": False, "message": f"Noto'g'ri holat: {status}"}
+    case = await firestore_db.get_case(farm_id, case_id)
+    if not case:
+        return {"found": False, "message": f"Bu holat topilmadi: {case_id}"}
+
+    await firestore_db.update_case(farm_id, case_id, {"status": status})
+
+    ear_tag = case.get("ear_tag")
+    if ear_tag and status == "davolanmoqda":
+        # Keep Animal.status in sync with the case's treatment state.
+        await firestore_db.update_animal(farm_id, ear_tag, {"status": "davolanmoqda"})
+
+    await firestore_db.create_event(farm_id, {
+        "event_type": "case_status_change",
+        "ear_tag": ear_tag,
+        "data": {"case_id": case_id, "new_status": status},
+        "ai_summary": f"Kasallik holati: {status}",
+        "recorded_by": "ai",
+    })
+    return {"success": True, "case_id": case_id, "status": status, "ear_tag": ear_tag}
 
 
 # ─── 6. log_vaccination ──────────────────────────────────────────
@@ -410,6 +439,7 @@ async def close_case(
         "recovery_days": recovery_days,
         "confirmed_by_vet": vet_confirmed,
         "vet_notes": vet_notes,
+        "status": "closed",
     })
 
     ear_tag = case.get("ear_tag")

@@ -18,6 +18,7 @@ from tools import (
     get_animal_full_record_tool,
     add_health_case,
     update_animal_status,
+    update_case_status,
     update_animal_info,
     log_vaccination,
     log_bulk_vaccination,
@@ -252,6 +253,18 @@ ALL_TOOLS = [
         },
     },
     {
+        "name": "update_case_status",
+        "description": "Kasallik holatini 'davolanmoqda' deb belgilash (yopish emas — buning uchun close_case ishlating)",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "case_id": {"type": "string"},
+                "status": {"type": "string", "enum": ["open", "davolanmoqda"]},
+            },
+            "required": ["case_id", "status"],
+        },
+    },
+    {
         "name": "update_animal_info",
         "description": (
             "Hayvonning asosiy ma'lumotlarini yangilash: homiladorlik holati/oyi, ism, zot, "
@@ -458,7 +471,7 @@ GEMINI_TOOLS = [
 # Tools that require farm_id injected server-side
 _TOOLS_WITH_FARM_ID = {
     "get_farm_stats", "get_all_animals", "get_animal", "get_animal_full_record",
-    "add_health_case", "update_animal_status", "update_animal_info",
+    "add_health_case", "update_animal_status", "update_case_status", "update_animal_info",
     "log_vaccination", "log_bulk_vaccination", "log_weight",
     "log_milk", "get_animal_history", "close_case", "add_photo_to_case",
     "append_case_symptoms", "get_active_cases", "record_event", "search_rag",
@@ -481,6 +494,7 @@ TOOL_MAP = {
     "get_animal_full_record": get_animal_full_record_tool,
     "add_health_case": add_health_case,
     "update_animal_status": update_animal_status,
+    "update_case_status": update_case_status,
     "update_animal_info": update_animal_info,
     "log_vaccination": log_vaccination,
     "log_bulk_vaccination": log_bulk_vaccination,
@@ -527,6 +541,8 @@ def _action_summary(name: str, inputs: Dict, affected: List[str]) -> str:
         return f"{inputs.get('ear_tag', '?')} uchun kasallik holati: {what}."
     if name == "update_animal_status":
         return f"{inputs.get('ear_tag', '?')} holatini '{inputs.get('new_status', '?')}' ga o'zgartirish."
+    if name == "update_case_status":
+        return f"Kasallik holatini '{inputs.get('status', '?')}' deb belgilash."
     if name == "update_animal_info":
         return f"{inputs.get('ear_tag', '?')} ma'lumotlarini yangilash."
     if name == "log_weight":
@@ -560,6 +576,7 @@ _REQUIRED_FIELDS = {
     # this gate a vague report ("X kasal bo'lib qoldi") could produce a
     # fabricated diagnosis instead of one clarifying question.
     "add_health_case": ["ear_tag", "symptoms", "body_part"],
+    "update_case_status": ["case_id", "status"],
 }
 
 
@@ -692,7 +709,7 @@ ANIQ tartibga o'ting. Buni FAQAT o'qib "hozircha faol yoki tarixiy
 kasalligi yo'q" deb JAVOB BERIB TO'XTASH — QAT'IYAN TAQIQLANADI.
 
 QAYSI AMALLAR FONDA BAJARILADI:
-- add_health_case, update_animal_status (davolanmoqda/kritik), log_vaccination, log_weight, record_event, add_photo_to_case
+- add_health_case, update_animal_status (davolanmoqda/kritik), update_case_status, log_vaccination, log_weight, record_event, add_photo_to_case
 
 FAQAT BULAR TASDIQ TALAB QILADI:
 - Hayvonni "o'ldi" yoki "soyildi" deb belgilash — aniq so'rang: "Hamroni o'ldi deb belgilayman. Tasdiqlaysizmi?"
@@ -970,7 +987,7 @@ async def run_agent(
                 and name in _TOOLS_WITH_FARM_ID
                 and name not in ("get_farm_stats", "get_all_animals", "get_active_cases",
                                  "log_milk", "record_event", "search_rag",
-                                 "log_bulk_vaccination")
+                                 "log_bulk_vaccination", "update_case_status")
             ):
                 inputs["ear_tag"] = pinned_animal
                 print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {name}")

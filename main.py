@@ -9,10 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest
+from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest, UpdateCaseStatusRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo
 from tools import close_case as close_case_tool
+from tools import update_case_status as update_case_status_tool
 from sheets_sync import sync_to_sheets_background, create_farm_sheet
 from context_builder import build_farm_context
 
@@ -779,6 +780,23 @@ async def close_case_endpoint(
         raise
     except Exception as exc:
         print(f"[/close-case] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/farm/{farm_id}/cases/{case_id}/status")
+async def update_case_status_endpoint(farm_id: str, case_id: str, req: UpdateCaseStatusRequest):
+    """Direct UI quick-action (e.g. 'Davolanmoqda deb belgilash') — not routed
+    through the AI confirm-card flow since the tap itself is the confirmation,
+    same precedent as /close-case."""
+    try:
+        result = await update_case_status_tool(farm_id=farm_id, case_id=case_id, status=req.status)
+        if not result.get("success"):
+            raise HTTPException(status_code=404, detail=result.get("message", "Case not found"))
+        return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[/cases/status] ERROR: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
 
