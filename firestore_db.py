@@ -1,3 +1,4 @@
+import base64
 import os
 import json
 import uuid
@@ -29,13 +30,25 @@ def _run(fn, *args):
 def _init_firebase():
     if firebase_admin._apps:
         return
+    # Prefer the base64 form: a multi-line JSON blob (with embedded PEM
+    # newlines) pasted into a web text field is exactly the kind of value
+    # that silently truncates/corrupts on save. A single unbroken base64
+    # line has no special characters and behaves like any other simple key.
+    cred_b64 = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON_B64", "").strip()
     cred_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if cred_b64:
+        try:
+            cred_json = base64.b64decode(cred_b64).decode("utf-8")
+        except Exception as e:
+            raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON_B64 is not valid base64: {e}")
     if not cred_json:
-        raise RuntimeError("GOOGLE_SERVICE_ACCOUNT_JSON env var is not set")
+        raise RuntimeError(
+            "Neither GOOGLE_SERVICE_ACCOUNT_JSON_B64 nor GOOGLE_SERVICE_ACCOUNT_JSON env var is set"
+        )
     try:
         cred_dict = json.loads(cred_json)
     except json.JSONDecodeError as e:
-        raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON is not valid JSON: {e}")
+        raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON(_B64) is not valid JSON: {e}")
     cred = credentials.Certificate(cred_dict)
     firebase_project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
     firebase_admin.initialize_app(cred, {
