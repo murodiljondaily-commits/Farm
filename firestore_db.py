@@ -229,6 +229,25 @@ async def get_active_cases(farm_id: str) -> List[Dict]:
     return _run(_q)
 
 
+async def get_all_cases(farm_id: str) -> List[Dict]:
+    """Every case regardless of open/closed — for reporting (get_active_cases
+    only returns still-open ones, which isn't enough for a historical report)."""
+    def _q():
+        docs = (
+            get_db().collection("farms")
+            .document(farm_id)
+            .collection("cases")
+            .stream()
+        )
+        cases = []
+        for doc in docs:
+            c = doc.to_dict()
+            c["case_id"] = doc.id
+            cases.append(c)
+        return cases
+    return _run(_q)
+
+
 # ─── Events ──────────────────────────────────────────────────────
 
 async def create_event(farm_id: str, event_data: Dict) -> str:
@@ -239,6 +258,50 @@ async def create_event(farm_id: str, event_data: Dict) -> str:
         get_db().collection("farms").document(farm_id).collection("events").document(event_id).set(event_data)
     _run(_q)
     return event_id
+
+
+async def create_case_atomic(
+    farm_id: str,
+    case_data: Dict,
+    event_data: Dict,
+    animal_ear_tag: Optional[str] = None,
+    animal_status: Optional[str] = None,
+) -> tuple[str, str]:
+    """Atomically create a case + (optionally) update the animal's status +
+    record an audit event, as one Firestore batched write.
+
+    Used by /diagnose-photo, where these were previously 3 independent .set()
+    calls inside a single non-fatal try/except — a mid-sequence failure could
+    leave a case with no linked event or animal-status update, while the
+    endpoint still returned 200. Batching means all writes land together or
+    none do.
+    """
+    case_id = uuid.uuid4().hex[:8]
+    case_data["case_id"] = case_id
+    case_data["opened_at"] = datetime.now(timezone.utc).isoformat()
+    case_data["closed_at"] = None
+
+    event_id = uuid.uuid4().hex[:8]
+    event_data["event_id"] = event_id
+    event_data["timestamp"] = datetime.now(timezone.utc).isoformat()
+    event_data.setdefault("case_id", case_id)
+
+    def _q():
+        db = get_db()
+        batch = db.batch()
+        farm_ref = db.collection("farms").document(farm_id)
+        batch.set(farm_ref.collection("cases").document(case_id), case_data)
+        if animal_ear_tag and animal_status:
+            batch.set(
+                farm_ref.collection("animals").document(animal_ear_tag),
+                {"status": animal_status, "updated_at": datetime.now(timezone.utc).isoformat()},
+                merge=True,
+            )
+        batch.set(farm_ref.collection("events").document(event_id), event_data)
+        batch.commit()
+
+    _run(_q)
+    return case_id, event_id
 
 
 async def get_recent_events(farm_id: str, days: int = 7) -> List[Dict]:

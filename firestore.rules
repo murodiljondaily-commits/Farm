@@ -1,0 +1,58 @@
+rules_version = '2';
+
+// Phase 6 / Layer 5 — the app's first-ever Firestore Security Rules. Before
+// this, the ONLY thing that ever touched Firestore was the FastAPI backend
+// using the admin SDK (which bypasses rules entirely) — the Flutter app had
+// no direct Firestore access at all. These rules exist purely to let the
+// Flutter client open READ-ONLY live listeners (see
+// lib/services/firestore_live_service.dart); all WRITES still go exclusively
+// through the backend (admin SDK, unaffected by these rules).
+//
+// Known limitation: access is scoped to a farm's single owner_uid, matching
+// what the data model actually enforces today (Farm.ownerUid in models.dart /
+// "owner_uid" in Firestore). The app also has a coowner/vet userRole concept
+// (join_screen.dart, farm join codes) but there is no backend-enforced
+// membership list backing it yet — so a coowner/vet signed in with their OWN
+// Google account would NOT currently pass these rules. Extending this needs
+// a real members list written server-side first; documented here rather than
+// invented without backing data.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(farmId) {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/farms/$(farmId)).data.owner_uid == request.auth.uid;
+    }
+
+    match /farms/{farmId} {
+      allow read: if isOwner(farmId);
+      allow write: if false; // admin SDK only
+
+      match /animals/{earTag} {
+        allow read: if isOwner(farmId);
+        allow write: if false;
+      }
+
+      match /cases/{caseId} {
+        allow read: if isOwner(farmId);
+        allow write: if false;
+      }
+
+      match /events/{eventId} {
+        allow read: if isOwner(farmId);
+        allow write: if false;
+      }
+
+      match /conversations/{conversationId} {
+        allow read: if isOwner(farmId);
+        allow write: if false;
+      }
+    }
+
+    // rag_knowledge is cross-farm anonymized training data — never exposed to
+    // clients directly, backend-only (matches current behavior, no client use).
+    match /rag_knowledge/{patternId} {
+      allow read, write: if false;
+    }
+  }
+}

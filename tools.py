@@ -2,7 +2,6 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 import firestore_db
-from sheets_sync import sync_to_sheets_background
 
 
 def _now_str() -> str:
@@ -181,14 +180,6 @@ async def add_health_case(
         "season": _current_season(),
     })
 
-    row = [
-        _now_str(), _now_time(), ear_tag, animal.get("name", ""),
-        animal.get("species", ""), ", ".join(symptoms), body_part, severity,
-        ai_diagnosis, f"{confidence}%", ", ".join(first_aid),
-        photo_urls[0] if photo_urls else "", "", "", "",
-    ]
-    await sync_to_sheets_background(farm_id, "Kasalliklar", row)
-
     return {"case_id": case_id, "animal_status_updated": new_status, "success": True}
 
 
@@ -211,9 +202,6 @@ async def update_animal_status(farm_id: str, ear_tag: str, new_status: str) -> D
         "ai_summary": f"{animal.get('name', '?')} holati: {old_status} → {new_status}",
         "recorded_by": "ai",
     })
-    await sync_to_sheets_background(farm_id, "Hayvonlar", [
-        _now_str(), ear_tag, animal.get("name", ""), new_status,
-    ])
     return {"success": True, "ear_tag": ear_tag, "new_status": new_status}
 
 
@@ -269,9 +257,6 @@ async def log_vaccination(
         "ai_summary": f"{animal.get('name', '?')} — {vaccine_name} emlash",
         "recorded_by": "ai",
     })
-    await sync_to_sheets_background(farm_id, "Emlashlar", [
-        date, ear_tag, animal.get("name", ""), vaccine_name, next_due or "", "AI",
-    ])
     return {"success": True, "event_id": event_id, "next_due": next_due}
 
 
@@ -304,10 +289,6 @@ async def log_weight(farm_id: str, ear_tag: str, weight_kg: float) -> Dict:
         ),
         "recorded_by": "ai",
     })
-    await sync_to_sheets_background(farm_id, "Vazn", [
-        _now_str(), ear_tag, animal.get("name", ""),
-        weight_kg, f"{change:+.1f}" if change else "", alert or "",
-    ])
     result: Dict[str, Any] = {"success": True, "weight_kg": weight_kg, "change": change}
     if alert:
         result["alert"] = alert
@@ -323,9 +304,6 @@ async def log_milk(farm_id: str, liters: float, session: str) -> Dict:
         "ai_summary": f"Sut: {liters}L ({session})",
         "recorded_by": "ai",
     })
-    await sync_to_sheets_background(farm_id, "Sut", [
-        _now_str(), session.capitalize(), liters, "",
-    ])
     return {"success": True, "liters": liters, "session": session, "event_id": event_id}
 
 
@@ -444,7 +422,22 @@ async def close_case(
 
     ear_tag = case.get("ear_tag")
     if ear_tag:
-        await firestore_db.update_animal(farm_id, ear_tag, {"status": "sog'lom"})
+        # Animal status must follow the actual outcome, not assume recovery.
+        # Two callers use two different spellings for the same outcomes —
+        # the Flutter close-case sheet sends 'oldi' (health_screen.dart), the
+        # AI tool schema's enum uses "o'ldi" (agent.py ALL_TOOLS) — so this
+        # normalizes the apostrophe before mapping instead of matching one
+        # literal spelling and silently falling through for the other caller.
+        normalized = (outcome or "").replace("'", "").replace("ʻ", "")
+        outcome_to_status = {
+            "tuzaldi": "sog'lom",           # healed
+            "yomonlashdi": "kritik",        # worsened
+            "oldi": "oldi",                 # died
+            "boshqa joyga yuborildi": "sotildi",  # sent elsewhere -> left the herd
+        }
+        await firestore_db.update_animal(
+            farm_id, ear_tag, {"status": outcome_to_status.get(normalized, "sog'lom")}
+        )
 
     await firestore_db.create_event(farm_id, {
         "event_type": "case_closed",
@@ -453,11 +446,6 @@ async def close_case(
         "ai_summary": f"Holat yopildi: {case.get('ai_diagnosis', '?')} — {outcome}",
         "recorded_by": "ai",
     })
-    await sync_to_sheets_background(farm_id, "Kasalliklar", [
-        _now_str(), case_id, ear_tag or "",
-        case.get("ai_diagnosis", ""), outcome,
-        "Ha" if vet_confirmed else "Yo'q", vet_notes or "",
-    ])
 
     # ── Back-fill matching RAG patterns with real outcome ─────────────────────
     ai_diagnosis = case.get("ai_diagnosis", "")
@@ -497,9 +485,6 @@ async def add_photo_to_case(
         "photo_urls": photo_urls,
         "visual_findings": visual_findings,
     })
-    await sync_to_sheets_background(farm_id, "Kasalliklar", [
-        _now_str(), case_id, photo_url, visual_findings,
-    ])
     return {"success": True, "photo_urls": photo_urls}
 
 
@@ -666,7 +651,4 @@ async def record_event_tool(
         "ai_summary": str(data)[:100],
         "recorded_by": "ai",
     })
-    await sync_to_sheets_background(farm_id, "Voqealar", [
-        _now_str(), _now_time(), event_type, ear_tag or "", "", str(data)[:100], "AI",
-    ])
     return {"success": True, "event_id": event_id}

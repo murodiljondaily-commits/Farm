@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -9,12 +10,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncRequest, CreateSheetRequest, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest, UpdateCaseStatusRequest
+from models import ChatRequest, ChatResponse, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest, UpdateCaseStatusRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo
 from tools import close_case as close_case_tool
 from tools import update_case_status as update_case_status_tool
-from sheets_sync import sync_to_sheets_background, create_farm_sheet
+from excel_export import generate_farm_excel
 from context_builder import build_farm_context
 
 app = FastAPI(title="AgriVet AI Backend", version="1.0")
@@ -346,6 +347,7 @@ async def chat(req: ChatRequest):
             conversation_id=req.conversation_id,
             user_role=req.user_role,
             vet_mode=req.vet_mode,
+            locale=req.locale,
         )
         return ChatResponse(
             response=result["response"],
@@ -355,6 +357,7 @@ async def chat(req: ChatRequest):
             data_saved=result.get("data_saved", {}),
             proposed_actions=result.get("proposed_actions", []),
             confidence=result.get("confidence", 0),
+            is_emergency=result.get("is_emergency", False),
         )
     except Exception as exc:
         msg = str(exc)
@@ -580,18 +583,9 @@ async def diagnose_photo(
                 "ai_model": "gemini-2.5-flash",
                 "status": "open",
             }
-            result_case_id = await firestore_db.create_case(farm_id, case_data)
-            print(f"[/diagnose-photo] case created: {result_case_id} assigned={bool(ear_tag)}")
-
-            # Reflect a serious finding in the animal's status (only if assigned).
-            if ear_tag and animal and severity in ("medium", "high", "emergency"):
-                new_status = "kritik" if severity in ("high", "emergency") else "davolanmoqda"
-                await firestore_db.update_animal(farm_id, ear_tag, {"status": new_status})
-
-            event_id = await firestore_db.create_event(farm_id, {
+            event_data = {
                 "event_type": "photo_diagnosis",
                 "ear_tag": ear_tag,
-                "case_id": result_case_id,
                 "data": {
                     "diagnosis": diagnosis,
                     "severity": severity,
@@ -600,8 +594,21 @@ async def diagnose_photo(
                     "photo_url": photo_url,
                 },
                 "ai_summary": f"Rasm tahlili{f' — {name}' if name else ''}: {diagnosis} ({severity})",
-            })
-            print(f"[/diagnose-photo] event recorded: {event_id}")
+            }
+            # Reflect a serious finding in the animal's status (only if assigned).
+            animal_status = None
+            if ear_tag and animal and severity in ("medium", "high", "emergency"):
+                animal_status = "kritik" if severity in ("high", "emergency") else "davolanmoqda"
+
+            # One atomic batch: case + (maybe) animal-status + event all land
+            # together, or none do — replaces 3 independent .set() calls that
+            # could previously leave a case with no linked event/status update.
+            result_case_id, event_id = await firestore_db.create_case_atomic(
+                farm_id, case_data, event_data,
+                animal_ear_tag=ear_tag if animal_status else None,
+                animal_status=animal_status,
+            )
+            print(f"[/diagnose-photo] case created: {result_case_id} assigned={bool(ear_tag)} event={event_id}")
         except Exception as save_exc:
             print(f"[/diagnose-photo] WARNING: persist failed (non-fatal): {save_exc}")
 
@@ -800,25 +807,20 @@ async def update_case_status_endpoint(farm_id: str, case_id: str, req: UpdateCas
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@app.post("/farm/{farm_id}/sync-sheets")
-async def manual_sync(
-    farm_id: str,
-    req: SyncRequest,
-    background_tasks: BackgroundTasks,
-):
-    background_tasks.add_task(
-        sync_to_sheets_background, farm_id, req.tab_name, req.row_data
-    )
-    return {"status": "queued", "tab": req.tab_name}
-
-
-@app.post("/farm/{farm_id}/create-sheet")
-async def create_sheet(farm_id: str, req: CreateSheetRequest):
+@app.get("/farm/{farm_id}/export-excel")
+async def export_excel(farm_id: str):
+    """On-demand Excel report (Hayvonlar ro'yxati / Sog'liq voqealari /
+    Statistika) — replaces the deprecated Google Sheets export."""
     try:
+        xlsx_bytes = await generate_farm_excel(farm_id)
         farm = await firestore_db.get_farm(farm_id)
-        farm_name = farm.get("name", farm_id) if farm else farm_id
-        sheet_url = await create_farm_sheet(farm_id, farm_name, req.owner_email)
-        return {"sheet_url": sheet_url, "success": True}
+        farm_name = (farm.get("name", farm_id) if farm else farm_id).replace(" ", "_")
+        filename = f"AgriVet_{farm_name}_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+        return Response(
+            content=xlsx_bytes,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
 

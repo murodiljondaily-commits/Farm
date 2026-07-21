@@ -9,6 +9,7 @@ class ChatRequest(BaseModel):
     message: str
     conversation_id: Optional[str] = None
     vet_mode: bool = False
+    locale: str = "uz"
 
 
 class ProposedAction(BaseModel):
@@ -29,6 +30,10 @@ class ChatResponse(BaseModel):
     proposed_actions: List[ProposedAction] = []
     # Phase 4: confidence % lifted out of the text so the app shows a badge.
     confidence: int = 0
+    # run_agent() always computed this but it never reached the client before
+    # (ChatResponse had no field for it) — the app can now render a distinct
+    # emergency alert instead of a farmer only finding out from the wording.
+    is_emergency: bool = False
 
 
 class ConfirmActionRequest(BaseModel):
@@ -36,15 +41,6 @@ class ConfirmActionRequest(BaseModel):
     action: str
     params: Dict[str, Any] = {}
     conversation_id: Optional[str] = None
-
-
-class SyncRequest(BaseModel):
-    tab_name: str
-    row_data: List[Any]
-
-
-class CreateSheetRequest(BaseModel):
-    owner_email: str
 
 
 class SyncAnimalsRequest(BaseModel):

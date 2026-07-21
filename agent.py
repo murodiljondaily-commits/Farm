@@ -9,8 +9,20 @@ from typing import Optional, List, Dict, Any
 from google import genai
 from google.genai import types
 
+import claude_orchestrator
+import language_boundary
 import firestore_db
 from context_builder import build_farm_context
+from tool_schemas import (
+    ALL_TOOLS,
+    TOOL_MAP,
+    READ_TOOL_NAMES as READ_TOOLS,
+    WRITE_TOOL_NAMES as WRITE_TOOLS,
+    REQUIRED_FIELDS as _REQUIRED_FIELDS,
+    missing_required as _missing_required,
+    action_summary as _action_summary,
+    _affected_animals,
+)
 from tools import (
     get_farm_stats,
     get_all_animals_tool,
@@ -173,277 +185,6 @@ def _as_response_dict(result: Any) -> Dict:
         safe = {"result": str(result)}
     return safe if isinstance(safe, dict) else {"result": safe}
 
-ALL_TOOLS = [
-    {
-        "name": "get_farm_stats",
-        "description": "Fermaning umumiy statistikasini olish: hayvonlar soni, faol kasalliklar, muddati o'tgan emlashlar",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "get_all_animals",
-        "description": "Ferma hayvonlarining to'liq ro'yxatini olish. Tur yoki holat bo'yicha filtrlash mumkin",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "species": {"type": "string", "description": "Hayvon turi (masalan: sigir, qo'y)"},
-                "status": {"type": "string", "description": "Holat filtri"},
-            },
-            "required": [],
-        },
-    },
-    {
-        "name": "get_animal",
-        "description": "Quloq raqami yoki ism bo'yicha hayvonning asosiy ma'lumotlarini olish",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string", "description": "Quloq raqami yoki hayvon ismi"},
-            },
-            "required": ["ear_tag"],
-        },
-    },
-    {
-        "name": "get_animal_full_record",
-        "description": (
-            "Hayvonning BARCHA ma'lumotlarini bir chaqiruvda olish: joriy holat, "
-            "ochiq va yopilgan kasallik tarixi, emlashlar, vazn tarixchasi, asosiy ma'lumotlar. "
-            "Hayvon haqida har qanday savol yoki yozish amalidan (holat, kasallik, emlash, vazn) OLDIN "
-            "albatta shu toolni chaqiring — taxmin qilmang, haqiqiy ma'lumotdan foydalaning."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string", "description": "Quloq raqami yoki ism"},
-            },
-            "required": ["ear_tag"],
-        },
-    },
-    {
-        "name": "add_health_case",
-        "description": "Hayvon kasalligi holatini ochish va ma'lumotlar bazasiga saqlash",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string"},
-                "symptoms": {"type": "array", "items": {"type": "string"}, "description": "Belgilar ro'yxati"},
-                "body_part": {"type": "string", "description": "Ta'sirlangan tana qismi"},
-                "severity": {"type": "string", "enum": ["low", "medium", "high", "emergency"]},
-                "ai_diagnosis": {"type": "string", "description": "AI tashxisi"},
-                "confidence": {"type": "integer", "description": "Ishonch darajasi 0-100"},
-                "first_aid": {"type": "array", "items": {"type": "string"}, "description": "Darhol choralar"},
-                "photo_urls": {"type": "array", "items": {"type": "string"}},
-            },
-            "required": ["ear_tag", "symptoms", "body_part", "severity", "ai_diagnosis", "confidence", "first_aid"],
-        },
-    },
-    {
-        "name": "update_animal_status",
-        "description": "Hayvon holatini yangilash",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string"},
-                "new_status": {"type": "string", "enum": ["sog'lom", "davolanmoqda", "kritik", "oldi", "soyildi"]},
-            },
-            "required": ["ear_tag", "new_status"],
-        },
-    },
-    {
-        "name": "update_case_status",
-        "description": "Kasallik holatini 'davolanmoqda' deb belgilash (yopish emas — buning uchun close_case ishlating)",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "case_id": {"type": "string"},
-                "status": {"type": "string", "enum": ["open", "davolanmoqda"]},
-            },
-            "required": ["case_id", "status"],
-        },
-    },
-    {
-        "name": "update_animal_info",
-        "description": (
-            "Hayvonning asosiy ma'lumotlarini yangilash: homiladorlik holati/oyi, ism, zot, "
-            "tug'ilgan sana, jins, yosh (oyda). "
-            "Holat (sog'lom/davolanmoqda/kritik) o'zgartirish uchun update_animal_status ishlating. "
-            "Ikkisi bir vaqtda kerak bo'lsa — IKKALA toolni BITTA javobda chaqiring."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string"},
-                "pregnancy_status": {
-                    "type": "string",
-                    "enum": ["pregnant", "not_pregnant", "unknown"],
-                    "description": "Homiladorlik holati",
-                },
-                "pregnancy_month": {
-                    "type": "number",
-                    "description": "Homiladorlik oyi (masalan: 3.5)",
-                },
-                "name": {"type": "string", "description": "Hayvon ismi"},
-                "breed": {"type": "string", "description": "Zot"},
-                "dob": {"type": "string", "description": "Tug'ilgan sana YYYY-MM-DD"},
-                "sex": {"type": "string", "enum": ["male", "female"]},
-                "age_months": {"type": "integer", "description": "Yosh oyda"},
-            },
-            "required": ["ear_tag"],
-        },
-    },
-    {
-        "name": "log_vaccination",
-        "description": "Emlash ma'lumotlarini saqlash",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string"},
-                "vaccine_name": {"type": "string"},
-                "date": {"type": "string", "description": "YYYY-MM-DD"},
-                "next_due": {"type": "string", "description": "Keyingi emlash sanasi YYYY-MM-DD"},
-            },
-            "required": ["ear_tag", "vaccine_name", "date"],
-        },
-    },
-    {
-        "name": "log_bulk_vaccination",
-        "description": (
-            "Bir vaqtda BIR NECHTA hayvonni emlaymiz — bitta operatsiyada. "
-            "Foydalanuvchi ro'yxatini tasdiqlagan va vaksina ma'lumotlari olgandan KEYIN chaqiring. "
-            "ear_tags — quloq raqamlari ro'yxati."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tags": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Quloq raqamlari ro'yxati",
-                },
-                "vaccine_name": {"type": "string"},
-                "date": {"type": "string", "description": "YYYY-MM-DD"},
-                "next_due": {"type": "string", "description": "Keyingi emlash sanasi YYYY-MM-DD"},
-            },
-            "required": ["ear_tags", "vaccine_name", "date"],
-        },
-    },
-    {
-        "name": "log_weight",
-        "description": "Hayvon vaznini saqlash va o'zgarishni kuzatish",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string"},
-                "weight_kg": {"type": "number"},
-            },
-            "required": ["ear_tag", "weight_kg"],
-        },
-    },
-    {
-        "name": "log_milk",
-        "description": "Sut miqdorini qayd etish",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "liters": {"type": "number"},
-                "session": {"type": "string", "enum": ["ertalab", "kechqurun"]},
-            },
-            "required": ["liters", "session"],
-        },
-    },
-    {
-        "name": "get_animal_history",
-        "description": "Hayvonning to'liq tarixini olish: kasalliklar, emlashlar, vazn o'zgarishlari",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ear_tag": {"type": "string"},
-            },
-            "required": ["ear_tag"],
-        },
-    },
-    {
-        "name": "search_rag",
-        "description": "O'xshash kasallik holatlarini bazadan qidirish va davolash tavsiyalarini olish",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "species": {"type": "string"},
-                "symptoms_list": {"type": "array", "items": {"type": "string"}},
-                "body_part": {"type": "string"},
-            },
-            "required": ["species", "symptoms_list"],
-        },
-    },
-    {
-        "name": "close_case",
-        "description": "Kasallik holatini yopish. FAQAT barcha maydonlar to'ldirilgandan keyin chaqiring: outcome, recovery_days (tuzaldi/yomonlashdi uchun), vet_confirmed.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "case_id": {"type": "string"},
-                "outcome": {"type": "string", "enum": ["tuzaldi", "yomonlashdi", "o'ldi", "boshqa joyga yuborildi"]},
-                "recovery_days": {"type": "integer", "description": "Necha kunda tuzaldi — FAQAT tuzaldi yoki yomonlashdi uchun"},
-                "vet_confirmed": {"type": "boolean"},
-                "vet_notes": {"type": "string"},
-            },
-            "required": ["case_id", "outcome"],
-        },
-    },
-    {
-        "name": "add_photo_to_case",
-        "description": "Kasallik holatiga rasm qo'shish va vizual topilmalarni saqlash",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "case_id": {"type": "string"},
-                "photo_url": {"type": "string"},
-                "visual_findings": {"type": "string"},
-            },
-            "required": ["case_id", "photo_url", "visual_findings"],
-        },
-    },
-    {
-        "name": "get_active_cases",
-        "description": "Fermadagi barcha faol (yopilmagan) kasallik holatlarini olish",
-        "input_schema": {
-            "type": "object",
-            "properties": {},
-            "required": [],
-        },
-    },
-    {
-        "name": "append_case_symptoms",
-        "description": "Mavjud ochiq kasallik holatiga yangi belgilar qo'shish. add_health_case already_open=true qaytarganida foydalaning.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "case_id": {"type": "string"},
-                "new_symptoms": {"type": "array", "items": {"type": "string"}},
-                "updated_severity": {"type": "string", "description": "Yangi og'irlik darajasi (ixtiyoriy): low/medium/high/emergency"},
-                "notes": {"type": "string", "description": "Qo'shimcha klinik izoh (ixtiyoriy)"},
-            },
-            "required": ["case_id", "new_symptoms"],
-        },
-    },
-    {
-        "name": "record_event",
-        "description": "Istalgan voqeani qayd etish (tug'ilish, o'lim, ko'chirish va boshqalar)",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "event_type": {"type": "string"},
-                "data": {"type": "object"},
-                "ear_tag": {"type": "string"},
-            },
-            "required": ["event_type", "data"],
-        },
-    },
-]
-
 def _to_gemini_declaration(tool: Dict) -> Dict:
     """Convert an Anthropic-style tool (name/description/input_schema) into a
     Gemini FunctionDeclaration dict. Tools with no parameters omit `parameters`
@@ -486,107 +227,6 @@ _WRITE_TOOLS_REQUIRE_CONFIRM = {"close_case"}
 
 # Status values that are irreversible — always require confirmation
 _DESTRUCTIVE_STATUSES = {"oldi", "soyildi"}
-
-TOOL_MAP = {
-    "get_farm_stats": get_farm_stats,
-    "get_all_animals": get_all_animals_tool,
-    "get_animal": get_animal_tool,
-    "get_animal_full_record": get_animal_full_record_tool,
-    "add_health_case": add_health_case,
-    "update_animal_status": update_animal_status,
-    "update_case_status": update_case_status,
-    "update_animal_info": update_animal_info,
-    "log_vaccination": log_vaccination,
-    "log_bulk_vaccination": log_bulk_vaccination,
-    "log_weight": log_weight,
-    "log_milk": log_milk,
-    "get_animal_history": get_animal_history_tool,
-    "search_rag": search_rag_tool,
-    "close_case": close_case,
-    "add_photo_to_case": add_photo_to_case,
-    "append_case_symptoms": append_case_symptoms,
-    "get_active_cases": get_active_cases_tool,
-    "record_event": record_event_tool,
-}
-
-# ── Phase 1: propose → confirm → execute ──────────────────────────────────────
-# READ tools run immediately and return data. Everything else MUTATES state and
-# must NOT auto-run — it is returned to the app as a proposed_action, and only
-# executed when the user taps Confirm (→ POST /confirm-action).
-READ_TOOLS = {
-    "get_farm_stats", "get_all_animals", "get_animal", "get_animal_full_record",
-    "get_animal_history", "get_active_cases", "search_rag",
-}
-WRITE_TOOLS = set(TOOL_MAP) - READ_TOOLS
-
-
-def _affected_animals(name: str, inputs: Dict) -> List[str]:
-    """Ear tags a proposed write would touch (for the confirm card)."""
-    if name == "log_bulk_vaccination":
-        return [str(t) for t in (inputs.get("ear_tags") or [])]
-    tag = inputs.get("ear_tag")
-    return [str(tag)] if tag else []
-
-
-def _action_summary(name: str, inputs: Dict, affected: List[str]) -> str:
-    """Short, plain-Uzbek one-liner describing the pending action for the card."""
-    n = len(affected)
-    date = inputs.get("date", "bugun")
-    if name == "log_bulk_vaccination":
-        return f"{n} ta hayvonni {inputs.get('vaccine_name', '?')} bilan emlash ({date})."
-    if name == "log_vaccination":
-        return f"{inputs.get('ear_tag', '?')} — {inputs.get('vaccine_name', '?')} emlash ({date})."
-    if name == "add_health_case":
-        what = inputs.get("ai_diagnosis") or ", ".join(inputs.get("symptoms", []) or []) or "yangi holat"
-        return f"{inputs.get('ear_tag', '?')} uchun kasallik holati: {what}."
-    if name == "update_animal_status":
-        return f"{inputs.get('ear_tag', '?')} holatini '{inputs.get('new_status', '?')}' ga o'zgartirish."
-    if name == "update_case_status":
-        return f"Kasallik holatini '{inputs.get('status', '?')}' deb belgilash."
-    if name == "update_animal_info":
-        return f"{inputs.get('ear_tag', '?')} ma'lumotlarini yangilash."
-    if name == "log_weight":
-        return f"{inputs.get('ear_tag', '?')} vazni: {inputs.get('weight_kg', '?')} kg."
-    if name == "log_milk":
-        return f"Sut: {inputs.get('liters', '?')} litr ({inputs.get('session', '?')})."
-    if name == "close_case":
-        return f"Kasallik holatini yopish (natija: {inputs.get('outcome', '?')})."
-    if name == "record_event":
-        return f"Voqea qayd etish: {inputs.get('event_type', '?')}."
-    if name == "add_photo_to_case":
-        return f"{inputs.get('ear_tag', '?')} holatiga rasm qo'shish."
-    if name == "append_case_symptoms":
-        return "Kasallik holatiga yangi belgilar qo'shish."
-    return f"{name} amalini bajarish."
-
-
-# Phase 3: fields Sonya MUST have before proposing a write. If missing, she asks
-# the farmer in plain text first (no card until complete). Only fields a farmer
-# would actually forget — targeting + the key value — are listed; date defaults
-# to today.
-_REQUIRED_FIELDS = {
-    "log_vaccination": ["ear_tag", "vaccine_name"],
-    "log_bulk_vaccination": ["ear_tags", "vaccine_name"],
-    "log_weight": ["ear_tag", "weight_kg"],
-    "log_milk": ["liters"],
-    "update_animal_status": ["ear_tag", "new_status"],
-    "close_case": ["case_id", "outcome"],
-    # Only the facts a FARMER must supply — ai_diagnosis/confidence/first_aid
-    # are things Sonya generates herself once she has real symptoms. Without
-    # this gate a vague report ("X kasal bo'lib qoldi") could produce a
-    # fabricated diagnosis instead of one clarifying question.
-    "add_health_case": ["ear_tag", "symptoms", "body_part"],
-    "update_case_status": ["case_id", "status"],
-}
-
-
-def _missing_required(name: str, inputs: Dict) -> List[str]:
-    missing = []
-    for f in _REQUIRED_FIELDS.get(name, []):
-        v = inputs.get(f)
-        if v is None or (isinstance(v, str) and not v.strip()) or (isinstance(v, (list, dict)) and not v):
-            missing.append(f)
-    return missing
 
 
 # Phase 4: pull Sonya's confidence % out of her prose so the app can render it as
@@ -660,6 +300,24 @@ def _is_confirmation(text: str) -> bool:
 
 # ── System prompt ─────────────────────────────────────────────────────────────
 
+# Maps the app's UI locale (sent by Flutter as e.g. "uz", "uz_Cyrl", "ru") to an
+# explicit instruction — message-text language detection alone can't tell
+# Cyrillic Uzbek from Latin Uzbek, and shouldn't override a farmer's deliberate
+# UI language choice just because they typed on a Latin keyboard.
+_LOCALE_FALLBACK_ERROR = {
+    "uz": "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring.",
+    "uz_Cyrl": "Кечирасиз, жавоб тайёрлаб бўлмади. Қайта уриниб кўринг.",
+    "ru": "Извините, не удалось подготовить ответ. Попробуйте ещё раз.",
+}
+
+_LOCALE_INSTRUCTIONS = {
+    "uz": "Javobingizni o'zbek tilida, LOTIN alifbosida yozing.",
+    "uz_Cyrl": "Javobingizni o'zbek tilida yozing, lekin albatta KIRILL alifbosida "
+               "(masalan: 'Ассалому алайкум', 'йўқ', 'соғлом'), lotin alifbosida EMAS.",
+    "ru": "Javobingizni rus tilida yozing.",
+}
+
+
 SYSTEM_BASE = """Siz AgriVet ilovasining "Sonya" — Farg'ona vodiysidan 15 yillik tajribali veterinar va ferma menejeri.
 
 Sizning vazifangiz:
@@ -667,7 +325,7 @@ Sizning vazifangiz:
 2. Hayvon muammosi haqida eshitsangiz — AVVAL get_animal_full_record chaqiring, SO'NG albatta HARAKAT qiling: faqat tarixni aytib TO'XTASH QAT'IYAN TAQIQLANADI
 3. Fermer hayvon muammosini ANIQ TASVIRLASA (belgi/tana qismi bor) — darhol klinik harakatlar boshla (search_rag → add_health_case), buyruq yoki tasdiq kutma. Tasvir XIRA bo'lsa (faqat "kasal", "yomon" — aniq belgi yo'q) — bitta aniqlashtiruvchi savol ber, keyin davom et
 4. Fermer "Men vetman/doktorman" desa — VET REJIMIGA o'ting
-5. Javob tili: foydalanuvchi tilini aniqlang (uz/ru) va shu tilda javob bering
+5. Javob tili: {language_instruction} Bu ilova UI tilidan olingan ko'rsatma — MUHIM va ustuvor. Agar biron sababdan bo'sh bo'lsa, foydalanuvchi xabaridan tilni aniqlang (uz/ru)
 6. HECH QACHON "veterinarga murojaat qiling" deb TUGAMANG — SIZ veterinarsiz
 7. Ishonch darajangizni DOIM ko'rsating (X%)
 8. Favqulodda holatlarda: DARHOL harakatlaning, keyin tushuntiring
@@ -855,276 +513,89 @@ async def run_agent(
     conversation_id: Optional[str],
     user_role: str,
     vet_mode: bool,
+    locale: str = "uz",
 ) -> Dict:
+    """Phase 6: Sonnet decides, Gemini handles both language boundaries (see
+    claude_orchestrator.py / language_boundary.py). Kept the exact same
+    signature/return shape as the old Gemini-native implementation so
+    main.py's /chat handler needed zero changes.
+
+    The old chat-typed-"yes" pending_writes confirmation path was dropped —
+    confirmed dead code before this rewrite (nothing in the repo ever
+    populated pending_writes; the only real confirmation path was always
+    proposed_actions -> client confirm card -> /confirm-action, which
+    claude_orchestrator.py already implements)."""
     if not conversation_id:
         conversation_id = uuid.uuid4().hex[:12]
 
     print(f"[Agent] run_agent farm_id={repr(farm_id)} msg={repr(user_message[:60])}")
 
-    # ── Load conversation state (pinned animal + pending writes) ─────────────
     conv_state = await firestore_db.get_conversation_state(farm_id, conversation_id)
     pinned_animal: Optional[str] = conv_state.get("pinned_animal")
-    pending_writes: List[Dict] = conv_state.get("pending_writes", [])
+    print(f"[Agent] pinned_animal={pinned_animal!r}")
 
-    print(f"[Agent] pinned_animal={pinned_animal!r}  pending_writes_count={len(pending_writes)}")
-
-    # ── Build context and history ─────────────────────────────────────────────
     context = await build_farm_context(farm_id)
     raw_history = await firestore_db.get_conversation_history(farm_id, conversation_id, limit=10)
-    # Gemini uses role "model" (not "assistant") and Content/Part objects.
-    contents: List[Any] = []
+
+    # History was stored in the farmer's own language (see save_conversation_
+    # turn below) — Sonnet only ever sees English, so translate each turn.
+    history_en: List[Dict[str, str]] = []
     for m in raw_history:
         role = m.get("role")
         text = m.get("content") or ""
-        if role == "user":
-            contents.append(types.Content(role="user", parts=[types.Part(text=text)]))
-        elif role == "assistant":
-            contents.append(types.Content(role="model", parts=[types.Part(text=text)]))
+        if not text or role not in ("user", "assistant"):
+            continue
+        history_en.append({
+            "role": role,
+            "content": await language_boundary.translate_to_english(text),
+        })
 
-    pinned_label = pinned_animal if pinned_animal else "Hali aniqlanmagan"
-    system_prompt = SYSTEM_BASE.format(
-        farm_context=context,
-        pinned_animal=pinned_label,
-        vet_mode="FAOL" if vet_mode else "O'CHIQ",
-        user_role=user_role,
-    )
-    if vet_mode:
-        system_prompt += VET_MODE_SUFFIX
-
-    # ── Emergency detection ───────────────────────────────────────────────────
     msg_lower = user_message.lower()
-    is_emergency = any(kw in msg_lower for kw in EMERGENCY_KW)
-    if is_emergency:
-        user_message = f"FAVQULODDA: {user_message}"
+    is_emergency_hint = any(kw in msg_lower for kw in EMERGENCY_KW)
 
-    # ── Handle pending writes confirmation / cancellation ────────────────────
-    data_saved: Dict[str, Any] = {}
+    english_message = await language_boundary.translate_to_english(user_message)
 
-    if pending_writes:
-        if _is_confirmation(user_message) or is_emergency:
-            # Execute ALL pending writes now that user confirmed
-            results_summary = []
-            for pw in pending_writes:
-                tool_name = pw["name"]
-                tool_inputs = pw["inputs"]
-                print(f"[Agent] Executing confirmed pending write [{len(results_summary)+1}/{len(pending_writes)}]: {tool_name}({json.dumps(tool_inputs, ensure_ascii=False)[:80]})")
-                result = await _execute_tool(tool_name, tool_inputs, farm_id)
-                data_saved[tool_name] = result
-                results_summary.append(
-                    f"'{tool_name}': {json.dumps(result, ensure_ascii=False, default=str)}"
-                )
-                print(f"[Agent] Confirmed write result: {str(result)[:120]}")
-
-            # Clear ALL pending writes
-            await firestore_db.update_conversation_state(
-                farm_id, conversation_id, {"pending_writes": []}
-            )
-            print(f"[Agent] Cleared pending_writes after executing {len(pending_writes)} writes")
-
-            # Inject all results into user message so AI formats a good response
-            user_message = (
-                f"{user_message}\n\n"
-                f"[TIZIM: Foydalanuvchi {len(pending_writes)} ta amalni tasdiqladi. "
-                f"Natijalar: {'; '.join(results_summary)}. "
-                f"Foydalanuvchiga nima o'zgarganini qisqa xabarlang.]"
-            )
-        else:
-            # User sent something that's not a confirmation — cancel all pending writes
-            names = [pw.get("name") for pw in pending_writes]
-            print(f"[Agent] Cancelling pending writes (no confirmation): {names}")
-            await firestore_db.update_conversation_state(
-                farm_id, conversation_id, {"pending_writes": []}
-            )
-            pending_writes = []
-
-    contents.append(types.Content(role="user", parts=[types.Part(text=user_message)]))
-
-    tools_called_names: List[str] = []
-
-    gen_config = types.GenerateContentConfig(
-        system_instruction=system_prompt,
-        tools=GEMINI_TOOLS,
-        temperature=0.7,
-        max_output_tokens=4096,
-        # Disable "thinking" (see _thinking_off_kwargs) so the model spends its
-        # output budget on the actual reply, not hidden thoughts.
-        **_THINKING_OFF,
-        # Manual tool loop — we intercept writes for confirmation ourselves.
-        automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
-        tool_config=types.ToolConfig(
-            function_calling_config=types.FunctionCallingConfig(mode="AUTO")
-        ),
+    result = await claude_orchestrator.decide_and_act(
+        farm_id=farm_id,
+        message=english_message,
+        history=history_en,
+        farm_context=context,
+        pinned_animal=pinned_animal,
+        vet_mode=vet_mode,
+        is_emergency_hint=is_emergency_hint,
     )
 
-    # ── Agent loop ────────────────────────────────────────────────────────────
-    proposed_actions: List[Dict[str, Any]] = []
-    response = await _generate(contents, gen_config)
-    print(f"[Agent] initial function_calls={len(response.function_calls or [])}")
+    final_text = await language_boundary.compose_reply(result["response"], locale=locale)
+    if not final_text.strip():
+        final_text = _LOCALE_FALLBACK_ERROR.get(locale, _LOCALE_FALLBACK_ERROR["uz"])
 
-    _loop_guard = 0
-    while response.function_calls and _loop_guard < 8:
-        _loop_guard += 1
-        function_calls = list(response.function_calls)
-        n_proposed_this_turn = 0
-        n_executed_this_turn = 0
-        print(f"[Agent] function_calls in this turn: {len(function_calls)} "
-              f"({[fc.name for fc in function_calls]})")
-
-        # Persist the model's function-call turn so the follow-up call has context.
-        if response.candidates and response.candidates[0].content:
-            contents.append(response.candidates[0].content)
-
-        fr_parts = []
-        for fc in function_calls:
-            name = fc.name
-            tools_called_names.append(name)
-            inputs = dict(fc.args or {})
-
-            # ── Auto-inject pinned animal into ear_tag if AI omitted it ─────
-            if (
-                pinned_animal
-                and "ear_tag" not in inputs
-                and name in _TOOLS_WITH_FARM_ID
-                and name not in ("get_farm_stats", "get_all_animals", "get_active_cases",
-                                 "log_milk", "record_event", "search_rag",
-                                 "log_bulk_vaccination", "update_case_status")
-            ):
-                inputs["ear_tag"] = pinned_animal
-                print(f"[Agent] Auto-injected pinned_animal={pinned_animal!r} into {name}")
-
-            # ── Pin animal from write tool inputs ─────────────────────────────
-            tool_ear_tag = inputs.get("ear_tag")
-            if tool_ear_tag and tool_ear_tag != pinned_animal:
-                pinned_animal = tool_ear_tag
-                try:
-                    await firestore_db.update_conversation_state(
-                        farm_id, conversation_id, {"pinned_animal": pinned_animal}
-                    )
-                    print(f"[Agent] Pinned animal (from {name} input) → {pinned_animal!r}")
-                except Exception as pin_exc:
-                    print(f"[Agent] WARNING: Could not save pin for {pinned_animal!r}: {pin_exc}")
-
-            # ── Phase 1+3: PROPOSE writes (after gathering required info) ─────
-            if name in WRITE_TOOLS and not is_emergency:
-                # Default the vaccination date to today so we don't nag for it.
-                if name in ("log_vaccination", "log_bulk_vaccination") and not inputs.get("date"):
-                    inputs["date"] = datetime.now(timezone.utc).date().isoformat()
-
-                # Phase 3: if required info is missing, ASK — don't propose yet.
-                missing = _missing_required(name, inputs)
-                if missing:
-                    print(f"[Agent] NEEDS INFO for {name}: {missing} — asking user")
-                    result = {
-                        "status": "needs_info",
-                        "missing": missing,
-                        "message": (
-                            f"Amal uchun quyidagi ma'lumot yetishmayapti: {', '.join(missing)}. "
-                            "Foydalanuvchidan buni oddiy tabiiy tilda SO'RANG. "
-                            "Amalni HALI taklif qilmang, TASDIQLASH kartasini chiqarmang."
-                        ),
-                    }
-                else:
-                    # Do NOT run the mutation. Return it as a proposed_action so
-                    # the app shows a Confirm card; it runs via /confirm-action.
-                    affected = _affected_animals(name, inputs)
-                    proposed_actions.append({
-                        "action": name,
-                        "params": inputs,
-                        "affected_animals": affected,
-                        "summary": _action_summary(name, inputs, affected),
-                    })
-                    n_proposed_this_turn += 1
-                    print(f"[Agent] PROPOSED {name} (affected={len(affected)}) — awaiting UI confirm")
-                    result = {
-                        "status": "awaiting_confirmation",
-                        "message": (
-                            "Amal HALI BAJARILMADI — foydalanuvchiga tasdiqlash KARTASI chiqadi. "
-                            "Nima qilmoqchi ekaningizni QISQA, bir jumlada, KELASI zamonda ayting "
-                            "(masalan: 'h001 vaznini 250 kg qilib yozaman — tasdiqlang'). "
-                            "'belgilandi', 'saqlandi', 'bajarildi' kabi O'TGAN zamon SO'ZLARINI ISHLATMANG. "
-                            "'saqlab bo'lmadi' yoki 'xatolik' ham DEMANG."
-                        ),
-                    }
-            elif name in WRITE_TOOLS and is_emergency:
-                # Emergency (life-threatening): execute immediately, no confirm delay.
-                result = await _execute_tool(name, inputs, farm_id)
-                n_executed_this_turn += 1
-                data_saved[name] = result
-            else:
-                # READ tool — execute immediately.
-                result = await _execute_tool(name, inputs, farm_id)
-                n_executed_this_turn += 1
-
-                # ── Auto-pin animal on successful lookup ─────────────────────
-                if name in _ANIMAL_LOOKUP_TOOLS and isinstance(result, dict) and result.get("found") is not False:
-                    new_pin = result.get("ear_tag")
-                    if new_pin and new_pin != pinned_animal:
-                        pinned_animal = new_pin
-                        try:
-                            await firestore_db.update_conversation_state(
-                                farm_id, conversation_id, {"pinned_animal": pinned_animal}
-                            )
-                            print(f"[Agent] Pinned animal (lookup result) → {pinned_animal!r}")
-                        except Exception as pin_exc:
-                            print(f"[Agent] WARNING: Could not save pin: {pin_exc}")
-
-            fr_parts.append(
-                types.Part.from_function_response(
-                    name=name, response=_as_response_dict(result)
-                )
-            )
-
-        print(f"[Agent] Turn summary: {len(function_calls)} detected, "
-              f"{n_proposed_this_turn} proposed, {n_executed_this_turn} executed")
-
-        contents.append(types.Content(role="user", parts=fr_parts))
-        response = await _generate(contents, gen_config)
-        print(f"[Agent] (loop) function_calls={len(response.function_calls or [])} "
-              f"proposed_so_far={len(proposed_actions)}")
-
-    try:
-        final_text = (response.text or "").strip()
-    except Exception:
-        final_text = ""
-
-    # flash-lite often returns EMPTY text on the turn right after a tool result.
-    # If we ran tools (have data to report) but got no text and nothing to
-    # confirm, nudge the model once to actually write the answer.
-    if not final_text and tools_called_names and not proposed_actions:
-        print("[Agent] empty text after tools — nudging for a written answer")
-        contents.append(types.Content(role="user", parts=[types.Part(text=(
-            "Yuqoridagi natijaga asoslanib, foydalanuvchiga QISQA, oddiy o'zbek "
-            "tilida javob matnini yozing. Tool CHAQIRMANG."))]))
+    # ── Pin tracking: last ear_tag touched this turn wins (mirrors old logic) ──
+    new_pin = pinned_animal
+    for action in result["proposed_actions"]:
+        tag = action.get("params", {}).get("ear_tag")
+        if tag:
+            new_pin = tag
+    for tool_result in result["data_saved"].values():
+        if isinstance(tool_result, dict):
+            tag = tool_result.get("ear_tag")
+            if tag:
+                new_pin = tag
+    if new_pin and new_pin != pinned_animal:
         try:
-            response = await _generate(contents, gen_config)
-            final_text = (response.text or "").strip()
-        except Exception:
-            final_text = ""
+            await firestore_db.update_conversation_state(
+                farm_id, conversation_id, {"pinned_animal": new_pin}
+            )
+            print(f"[Agent] Pinned animal -> {new_pin!r}")
+        except Exception as pin_exc:
+            print(f"[Agent] WARNING: Could not save pin for {new_pin!r}: {pin_exc}")
+        pinned_animal = new_pin
 
-    # Never let internal tool-call bookkeeping reach the farmer or get
-    # persisted to history (see _strip_internal_leaks docstring).
-    final_text = _strip_internal_leaks(final_text)
-
-    # Phase 4: lift the confidence % out of the prose into a structured field.
-    final_text, confidence = _extract_confidence(final_text)
-
-    if proposed_actions:
-        # The confirm card carries the action; the text above it must never
-        # read as a failure. The model sometimes ignores the prompt and writes
-        # "saqlashda muammo bo'ldi" — override deterministically.
-        low_ft = final_text.lower()
-        _FAILURE_WORDS = ("muammo", "xatolik", "saqlab bo", "saqlanmadi",
-                          "bajarilmadi", "urinib ko", "tayyorlab bo")
-        if not final_text or any(w in low_ft for w in _FAILURE_WORDS):
-            final_text = "Quyidagi amalni tasdiqlang:"
-    elif not final_text:
-        final_text = "Kechirasiz, javob tayyorlab bo'lmadi. Qayta urinib ko'ring."
-
+    # Store the ORIGINAL-language turn, not the English internals — this is
+    # what the farmer sees again if they reopen the conversation.
     await firestore_db.save_conversation_turn(
-        farm_id, conversation_id, user_message, final_text, tools_called_names
+        farm_id, conversation_id, user_message, final_text, result["tools_called"]
     )
 
-    # Detect vet mode toggle
     new_vet_mode = vet_mode
     if any(kw in msg_lower for kw in VET_ON_KW):
         new_vet_mode = True
@@ -1134,11 +605,11 @@ async def run_agent(
     return {
         "response": final_text,
         "vet_mode": new_vet_mode,
-        "tools_called": tools_called_names,
+        "tools_called": result["tools_called"],
         "conversation_id": conversation_id,
-        "data_saved": data_saved,
-        "proposed_actions": proposed_actions,
-        "confidence": confidence,
-        "is_emergency": is_emergency,
+        "data_saved": result["data_saved"],
+        "proposed_actions": result["proposed_actions"],
+        "confidence": result["confidence"],
+        "is_emergency": result["is_emergency"],
         "pinned_animal": pinned_animal,
     }

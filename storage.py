@@ -1,30 +1,14 @@
+import base64
 import os
 import json
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
-from google import genai
-from google.genai import types
+from openai import AsyncOpenAI
 from firebase_admin import storage as fb_storage
 
-client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
-MODEL = "gemini-2.5-flash-lite"  # see agent.py: thinking off by default, available
-# Same fallback chain as agent.py — flash-lite 503s ("high demand") for minutes
-# at a time; these alternates were observed UP during such an outage.
-FALLBACK_MODELS = ("gemini-flash-lite-latest", "gemini-2.5-flash")
-
-
-def _thinking_off_kwargs() -> Dict:
-    """Disable 2.5-flash 'thinking' so the vision reply isn't starved of output
-    tokens. Defensive: older google-genai without `thinking_budget` must not
-    crash the request — omit it instead. See agent.py for the full rationale."""
-    try:
-        return {"thinking_config": types.ThinkingConfig(thinking_budget=0)}
-    except Exception:
-        return {}
-
-
-_THINKING_OFF = _thinking_off_kwargs()
+_openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "").strip())
+VISION_MODEL = "gpt-4o-mini"
 
 
 async def upload_photo(
@@ -59,8 +43,8 @@ async def upload_photo(
     return blob.public_url
 
 
-# Gemini vision accepts jpeg/png/webp/heic/heif — normalise anything else to jpeg
-_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"}
+# GPT-4o mini vision accepts jpeg/png/webp/gif — normalise anything else to jpeg
+_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 async def analyze_photo(
     image_bytes: bytes,
@@ -85,43 +69,31 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
   "which_leg_or_part": "aniq qaysi qism ko'rinmoqda"
 }}"""
 
-    contents = [
-        types.Content(
-            role="user",
-            parts=[
-                types.Part.from_bytes(data=image_bytes, mime_type=media_type),
-                types.Part(text=prompt),
+    b64_image = base64.b64encode(image_bytes).decode("ascii")
+
+    try:
+        response = await _openai_client.chat.completions.create(
+            model=VISION_MODEL,
+            max_tokens=1024,
+            response_format={"type": "json_object"},
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{media_type};base64,{b64_image}"},
+                        },
+                    ],
+                }
             ],
         )
-    ]
-    config = types.GenerateContentConfig(
-        max_output_tokens=1024,
-        response_mime_type="application/json",
-        **_THINKING_OFF,
-    )
+    except Exception as exc:
+        print(f"[Storage] GPT-4o mini vision call failed: {exc}")
+        raise
 
-    response = None
-    last_exc = None
-    for model in (MODEL, *FALLBACK_MODELS):
-        try:
-            response = await client.aio.models.generate_content(
-                model=model, contents=contents, config=config
-            )
-            if model != MODEL:
-                print(f"[Storage] photo analysis served by FALLBACK model {model}")
-            break
-        except Exception as exc:
-            msg = str(exc).lower()
-            if ("503" in msg or "unavailable" in msg or "overloaded" in msg
-                    or "404" in msg or "not found" in msg):
-                last_exc = exc
-                print(f"[Storage] {model} unavailable — trying next model")
-                continue
-            raise
-    if response is None:
-        raise last_exc if last_exc else RuntimeError("Gemini: all models failed")
-
-    text = response.text or ""
+    text = response.choices[0].message.content or ""
     clean = text.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(clean)
