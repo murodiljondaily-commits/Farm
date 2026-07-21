@@ -161,6 +161,7 @@ class HealthCase {
   final String status;
   final int vetNotified;
   final String createdAt;
+  final String? backendCaseId;
 
   HealthCase({
     required this.caseId,
@@ -176,6 +177,7 @@ class HealthCase {
     required this.status,
     required this.vetNotified,
     required this.createdAt,
+    this.backendCaseId,
   });
 
   factory HealthCase.fromMap(Map<String, dynamic> m) => HealthCase(
@@ -192,10 +194,18 @@ class HealthCase {
         status: m['status'] ?? 'open',
         vetNotified: m['vet_notified'] as int? ?? 0,
         createdAt: m['created_at'] ?? '',
+        backendCaseId: m['backend_case_id'] as String?,
       );
 
   bool get isOpen => status == 'open';
+  bool get isHealing => status == 'davolanmoqda';
   bool get isEmergency => severity == 'emergency';
+
+  /// Not yet closed — counts as "active" for dashboards/stats (open OR healing).
+  bool get isActive => status != 'closed';
+
+  /// An unassigned case (e.g. a photo taken with no ear tag) has no animal yet.
+  bool get isAssigned => earTag.trim().isNotEmpty;
 }
 
 class Vaccination {

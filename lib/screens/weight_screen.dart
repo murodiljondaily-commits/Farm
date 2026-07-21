@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../theme.dart';
 import '../providers/farm_provider.dart';
 import '../services/db_service.dart';
@@ -48,20 +49,21 @@ class _WeightScreenState extends State<WeightScreen> {
   }
 
   Future<void> _confirmAndDelete(WeightEntry w) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("O'chirishni tasdiqlang"),
-        content: Text("${w.earTag} — ${w.weight} kg (${w.measuredAt})\n\nBu yozuvni o'chirmoqchimisiz?"),
+        title: Text(l10n.deleteConfirmTitle),
+        content: Text("${w.earTag} — ${w.weight} kg (${w.measuredAt})\n\n${l10n.deleteConfirmBody}"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Bekor'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("O'chirish"),
+            child: Text(l10n.deleteBtn),
           ),
         ],
       ),
@@ -71,6 +73,14 @@ class _WeightScreenState extends State<WeightScreen> {
     if (mounted) _load();
   }
 
+  Animal? _animalFor(String earTag) {
+    try {
+      return _animals.firstWhere((a) => a.earTag == earTag);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
@@ -78,6 +88,12 @@ class _WeightScreenState extends State<WeightScreen> {
       appBar: CapsuleBar(
         title: l10n.weightTitle,
         onBack: () => context.canPop() ? context.pop() : context.go('/'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add_rounded),
+            onPressed: () => _showAdd(context),
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
@@ -103,60 +119,165 @@ class _WeightScreenState extends State<WeightScreen> {
                               sorted[j].weight - sorted[j - 1].weight;
                         }
                       }
-                      return ListView.builder(
-                        padding: const EdgeInsets.only(bottom: 100),
-                        itemCount: _weights.length,
-                        itemBuilder: (_, i) {
-                          final w = _weights[i];
-                          final delta = weightDelta[w.id];
-                          return Card(
-                            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                            child: ListTile(
-                            leading: const CircleAvatar(
-                              backgroundColor: Color(0xFFEDE7F6),
-                              child: Icon(Icons.monitor_weight_outlined,
-                                  color: Color(0xFF6A1B9A)),
-                            ),
-                            title: Text('${w.earTag} — ${w.weight} kg',
-                                style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text(w.measuredAt),
-                            trailing: Row(
-                              mainAxisSize: MainAxisSize.min,
+
+                      // Weekly average = mean of entries from the last 7 days.
+                      final weekAgo = DateTime.now().subtract(const Duration(days: 7));
+                      final recentWeights = _weights.where((w) {
+                        final d = DateTime.tryParse(w.measuredAt);
+                        return d != null && d.isAfter(weekAgo);
+                      }).toList();
+                      final weeklyAvg = recentWeights.isEmpty
+                          ? 0.0
+                          : recentWeights.fold(0.0, (a, w) => a + w.weight) /
+                              recentWeights.length;
+
+                      // Last 6 months bar chart (average weight per month).
+                      final now = DateTime.now();
+                      final months = List.generate(6, (i) {
+                        final m = DateTime(now.year, now.month - (5 - i), 1);
+                        return m;
+                      });
+                      final monthAverages = months.map((m) {
+                        final inMonth = _weights.where((w) {
+                          final d = DateTime.tryParse(w.measuredAt);
+                          return d != null && d.year == m.year && d.month == m.month;
+                        }).toList();
+                        if (inMonth.isEmpty) return 0.0;
+                        return inMonth.fold(0.0, (a, w) => a + w.weight) / inMonth.length;
+                      }).toList();
+                      final maxAvg = monthAverages.fold(
+                          0.0, (a, b) => b > a ? b : a);
+
+                      return ListView(
+                        padding: const EdgeInsets.fromLTRB(20, 12, 20, 100),
+                        children: [
+                          // ── Weekly average card ────────────────────────────
+                          Container(
+                            padding: const EdgeInsets.all(20),
+                            decoration: frostedCard(radius: 24, color: Colors.white),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                if (delta != null)
-                                  Text(
-                                    delta >= 0
-                                        ? '+${delta.toStringAsFixed(1)}'
-                                        : delta.toStringAsFixed(1),
-                                    style: TextStyle(
-                                        color: delta >= 0
-                                            ? kPrimary
-                                            : (delta < -w.weight * 0.1
-                                                ? kError
-                                                : Colors.orange),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 11),
+                                Text(l10n.weightWeeklyAvg, style: labelBold()),
+                                const SizedBox(height: 8),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
+                                  children: [
+                                    Text(weeklyAvg.toStringAsFixed(1),
+                                        style: statNumber(size: 30)),
+                                    const SizedBox(width: 6),
+                                    Text('kg', style: inter(size: 16, color: kGrey)),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(999),
+                                  child: LinearProgressIndicator(
+                                    value: maxAvg > 0
+                                        ? (weeklyAvg / (maxAvg == 0 ? 1 : maxAvg))
+                                            .clamp(0.0, 1.0)
+                                        : 0,
+                                    minHeight: 8,
+                                    backgroundColor: kGreyLight,
+                                    valueColor:
+                                        const AlwaysStoppedAnimation(kMint),
                                   ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete_outline, size: 20),
-                                  color: Colors.red[300],
-                                  tooltip: "O'chirish",
-                                  onPressed: () => _confirmAndDelete(w),
                                 ),
                               ],
                             ),
                           ),
-                        );
-                      },
-                    );
+                          const SizedBox(height: 16),
+
+                          // ── 6-month bar chart ──────────────────────────────
+                          if (maxAvg > 0)
+                            Container(
+                              padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
+                              decoration: frostedCard(radius: 24, color: Colors.white),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(l10n.weightChartTitle,
+                                      style: jakarta(size: 16, weight: FontWeight.w700)),
+                                  const SizedBox(height: 4),
+                                  Text(l10n.weightChartSubtitle,
+                                      style: inter(size: 12.5, color: kGrey)),
+                                  const SizedBox(height: 16),
+                                  SizedBox(
+                                    height: 120,
+                                    child: BarChart(
+                                      BarChartData(
+                                        maxY: maxAvg * 1.2,
+                                        gridData: const FlGridData(show: false),
+                                        borderData: FlBorderData(show: false),
+                                        titlesData: FlTitlesData(
+                                          leftTitles: const AxisTitles(
+                                              sideTitles:
+                                                  SideTitles(showTitles: false)),
+                                          rightTitles: const AxisTitles(
+                                              sideTitles:
+                                                  SideTitles(showTitles: false)),
+                                          topTitles: const AxisTitles(
+                                              sideTitles:
+                                                  SideTitles(showTitles: false)),
+                                          bottomTitles: AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              getTitlesWidget: (v, meta) {
+                                                final idx = v.toInt();
+                                                if (idx < 0 || idx >= months.length) {
+                                                  return const SizedBox.shrink();
+                                                }
+                                                final monthAbbr = [
+                                                  l10n.weightMonthJan, l10n.weightMonthFeb,
+                                                  l10n.weightMonthMar, l10n.weightMonthApr,
+                                                  l10n.weightMonthMay, l10n.weightMonthJun,
+                                                  l10n.weightMonthJul, l10n.weightMonthAug,
+                                                  l10n.weightMonthSep, l10n.weightMonthOct,
+                                                  l10n.weightMonthNov, l10n.weightMonthDec,
+                                                ];
+                                                return Padding(
+                                                  padding: const EdgeInsets.only(top: 6),
+                                                  child: Text(
+                                                    monthAbbr[months[idx].month - 1],
+                                                    style: inter(size: 10.5, color: kGrey),
+                                                  ),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        barGroups: List.generate(months.length, (i) {
+                                          final isLast = i == months.length - 1;
+                                          return BarChartGroupData(x: i, barRods: [
+                                            BarChartRodData(
+                                              toY: monthAverages[i],
+                                              color: isLast ? kTeal : kMint.withValues(alpha: 0.5),
+                                              width: 22,
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                          ]);
+                                        }),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 20),
+                          Text(l10n.weightRecentRecords,
+                              style: jakarta(size: 18, weight: FontWeight.w700)),
+                          const SizedBox(height: 12),
+                          ..._weights.map((w) => _WeightTile(
+                                entry: w,
+                                animal: _animalFor(w.earTag),
+                                delta: weightDelta[w.id],
+                                onDelete: () => _confirmAndDelete(w),
+                              )),
+                        ],
+                      );
                   }),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showAdd(context),
-        icon: const Icon(Icons.add),
-        label: Text(l10n.weightAddBtn),
-        backgroundColor: const Color(0xFF6A1B9A),
-      ),
     );
   }
 
@@ -254,7 +375,7 @@ class _WeightScreenState extends State<WeightScreen> {
                     width: double.infinity,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF6A1B9A)),
+                          backgroundColor: kTeal),
                       onPressed: saving ? null : () async {
                         if (!formKey.currentState!.validate()) return;
                         setSheet(() => saving = true);
@@ -271,11 +392,11 @@ class _WeightScreenState extends State<WeightScreen> {
                           _load();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Vazn yozuvi saqlandi",
-                                    style: TextStyle(color: Colors.white)),
-                                duration: Duration(seconds: 3),
-                                backgroundColor: Color(0xFF2E7D32),
+                              SnackBar(
+                                content: Text(l10n.weightSavedSnack,
+                                    style: const TextStyle(color: Colors.white)),
+                                duration: const Duration(seconds: 3),
+                                backgroundColor: const Color(0xFF2E7D32),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
@@ -285,7 +406,7 @@ class _WeightScreenState extends State<WeightScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text("Xatolik: $e",
+                                content: Text(l10n.errorWithDetail('$e'),
                                     style: const TextStyle(color: Colors.white)),
                                 duration: const Duration(seconds: 4),
                                 backgroundColor: kError,
@@ -308,6 +429,80 @@ class _WeightScreenState extends State<WeightScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// Weight record row — mint icon well, colored delta vs previous entry.
+class _WeightTile extends StatelessWidget {
+  final WeightEntry entry;
+  final Animal? animal;
+  final double? delta;
+  final VoidCallback onDelete;
+
+  const _WeightTile({
+    required this.entry,
+    required this.animal,
+    required this.delta,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final deltaColor = delta == null
+        ? kGrey
+        : delta! >= 0
+            ? kStatusSoglom
+            : (delta! < -entry.weight * 0.1 ? kError : kStatusDavolanmoqda);
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: frostedCard(radius: 20, color: Colors.white),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: kMintSoft,
+            child: Text(animal != null ? speciesEmoji(animal!.species) : '🐾',
+                style: const TextStyle(fontSize: 17)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(animal?.displayName ?? entry.earTag,
+                    style: jakarta(size: 14.5, weight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text('ID: #${entry.earTag} • ${entry.measuredAt}',
+                    style: inter(size: 12.5, color: kGrey)),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text('${entry.weight.toStringAsFixed(0)} kg',
+                  style: statNumber(size: 17)),
+              if (delta != null)
+                Text(
+                  delta! >= 0
+                      ? '+${delta!.toStringAsFixed(1)} kg'
+                      : '${delta!.toStringAsFixed(1)} kg',
+                  style: inter(
+                      size: 12, weight: FontWeight.w700, color: deltaColor),
+                ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: kError.withValues(alpha: 0.7),
+            tooltip: l10n.deleteBtn,
+            onPressed: onDelete,
+          ),
+        ],
       ),
     );
   }

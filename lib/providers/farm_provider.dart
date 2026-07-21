@@ -4,6 +4,8 @@ import '../models/models.dart';
 import '../services/db_service.dart';
 import '../services/auth_service.dart';
 import '../services/google_auth_service.dart';
+import '../services/vet_ai_service.dart';
+import '../services/firestore_live_service.dart';
 
 class FarmProvider extends ChangeNotifier {
   String? _farmId;
@@ -72,6 +74,13 @@ class FarmProvider extends ChangeNotifier {
         debugPrint('[FarmProvider] step 3 — DbService.getFarm($_farmId)');
         _farm = await DbService.getFarm(_farmId!);
         debugPrint('[FarmProvider] farm loaded: ${_farm?.farmName}');
+        // Opportunistic live sync: only meaningful with a real Firebase Auth
+        // session (Security Rules require request.auth.uid == owner_uid).
+        // Silently does nothing signed-out/offline — SQLite + notifyDirty()
+        // remain the source of truth exactly as before this existed.
+        if (FirebaseAuth.instance.currentUser != null) {
+          FirestoreLiveService.start(_farmId!, notifyDirty);
+        }
       } else {
         debugPrint('[FarmProvider] step 3 — skipped (no farmId)');
       }
@@ -115,6 +124,20 @@ class FarmProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Trusted background tasks (image_picker, share sheets, etc.) ───────────
+  // Backgrounding the app to launch a system picker can legitimately take
+  // longer than the 60s auto-lock threshold (permission dialogs, browsing a
+  // large gallery). Screens wrap such calls in begin/end so the security
+  // lock in main.dart doesn't misfire mid-workflow. Counter-based so nested
+  // or overlapping trusted calls are safe.
+  int _suppressLockDepth = 0;
+  bool get suppressAutoLock => _suppressLockDepth > 0;
+
+  void beginTrustedBackgroundTask() => _suppressLockDepth++;
+  void endTrustedBackgroundTask() {
+    if (_suppressLockDepth > 0) _suppressLockDepth--;
+  }
+
   Future<void> touch() => AuthService.touch();
 
   /// Signal all listeners (e.g. animals_screen) to reload after an AI write.
@@ -124,6 +147,7 @@ class FarmProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    FirestoreLiveService.stop();
     await GoogleAuthService.signOut();
     await AuthService.logout();
     _farmId = null;
@@ -156,6 +180,32 @@ class FarmProvider extends ChangeNotifier {
       // Link legacy farms (created before identity system) into identity.
       await DbService.linkFarmToIdentity(_identityId!, f.farmId);
     }
+
+    // Cross-device restore: fetch farms this Google account owns from the backend
+    // (Firestore), since a fresh install has no local SQLite record of them.
+    try {
+      final email = FirebaseAuth.instance.currentUser?.email;
+      final remote = await VetAiService.lookupFarmsByOwner(uid: uid, email: email);
+      for (final r in remote) {
+        final farmId = r['farm_id'] as String?;
+        if (farmId == null || allMap.containsKey(farmId)) continue;
+        final farm = Farm(
+          farmId: farmId,
+          farmName: r['farm_name'] as String? ?? '',
+          farmCode: r['farm_code'] as String? ?? '',
+          location: r['location'] as String? ?? '',
+          ownerName: r['owner_name'] as String? ?? '',
+          ownerEmail: r['owner_email'] as String?,
+          ownerUid: r['owner_uid'] as String? ?? uid,
+        );
+        await DbService.saveFarm(farm); // persist locally so selectFarm() works
+        await DbService.linkFarmToIdentity(_identityId!, farmId);
+        allMap[farmId] = farm;
+      }
+    } catch (e) {
+      debugPrint('[FarmProvider] remote farm restore failed: $e');
+    }
+
     _availableFarms = allMap.values.toList();
   }
 

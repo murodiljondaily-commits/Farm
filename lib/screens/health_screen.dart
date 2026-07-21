@@ -22,6 +22,8 @@ class _HealthScreenState extends State<HealthScreen> {
   List<HealthCase> _cases = [];
   List<Animal> _animals = [];
   bool _loading = true;
+  int _seenAiWriteCount = 0;
+  String _filter = 'all'; // all | critical
 
   @override
   void initState() {
@@ -48,54 +50,143 @@ class _HealthScreenState extends State<HealthScreen> {
     }
   }
 
+  /// Attach an unassigned (photo) case to an animal: backend first (source of
+  /// truth, so it syncs across devices), then mirror into local SQLite.
+  Future<void> _assign(HealthCase c, String earTag) async {
+    final farmId = context.read<FarmProvider>().farmId;
+    if (farmId == null) return;
+    if (c.backendCaseId != null && c.backendCaseId!.isNotEmpty) {
+      await VetAiService.assignCaseToAnimal(
+          farmId: farmId, caseId: c.backendCaseId!, earTag: earTag);
+    }
+    await DbService.assignCaseLocal(c.caseId, earTag);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).healthAssignedSnack(earTag)),
+          duration: const Duration(seconds: 2),
+          backgroundColor: const Color(0xFF22DD66),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    _load();
+  }
+
+  /// Quick action: mark a case as "davolanmoqda" (healing) — local first, then
+  /// the backend only if this case is actually linked there (same guard
+  /// pattern as _assign, since not every local case has a backendCaseId).
+  Future<void> _markHealing(HealthCase c) async {
+    final farmId = context.read<FarmProvider>().farmId;
+    if (farmId == null) return;
+    await DbService.updateCaseStatus(c.caseId, 'davolanmoqda');
+    await DbService.updateAnimalStatus(farmId, c.earTag, 'davolanmoqda');
+    if (c.backendCaseId != null && c.backendCaseId!.isNotEmpty) {
+      await VetAiService.updateCaseStatusViaApi(
+          farmId: farmId, caseId: c.backendCaseId!, status: 'davolanmoqda');
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.of(context).healthMarkedHealingSnack),
+          duration: const Duration(seconds: 2),
+          backgroundColor: kStatusDavolanmoqda,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    // Phase 2: reload live when a chat-confirmed write lands (e.g. a new case).
+    final provider = context.watch<FarmProvider>();
+    if (provider.aiWriteCount > _seenAiWriteCount) {
+      _seenAiWriteCount = provider.aiWriteCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
+    final openCount = _cases.where((c) => c.isActive).length;
+    final critCount = _cases.where((c) => c.isEmergency).length;
+    final visible = _filter == 'critical'
+        ? _cases.where((c) => c.isEmergency).toList()
+        : _cases;
+
     return Scaffold(
       appBar: CapsuleBar(
         title: l10n.healthTitle,
         onBack: () => context.canPop() ? context.pop() : context.go('/'),
+        actions: [
+          IconButton(
+              icon: const Icon(Icons.search_rounded), onPressed: () {}),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : RefreshIndicator(
               onRefresh: _load,
-              child: Column(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 110),
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        _SummaryChip(
-                            count: _cases.where((c) => c.isOpen).length,
-                            label: l10n.healthOpen,
-                            color: Colors.orange),
-                        const SizedBox(width: 8),
-                        _SummaryChip(
-                            count: _cases.where((c) => c.isEmergency).length,
-                            label: l10n.healthSevere,
-                            color: kError),
-                        const SizedBox(width: 8),
-                        _SummaryChip(
-                            count: _cases.where((c) => !c.isOpen).length,
-                            label: l10n.healthClosed,
-                            color: kPrimary),
-                      ],
+                  // ── Two headline stat wells ─────────────────────────────
+                  Row(children: [
+                    Expanded(
+                      child: _HealthStatWell(
+                        label: l10n.healthStatOpenLabel,
+                        value: '$openCount',
+                        sub: l10n.healthStatActive,
+                        color: kTeal,
+                      ),
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _HealthStatWell(
+                        label: l10n.healthStatCriticalLabel,
+                        value: critCount.toString().padLeft(2, '0'),
+                        sub: l10n.healthStatUrgent,
+                        color: kError,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(l10n.healthJournalTitle,
+                          style: jakarta(size: 18, weight: FontWeight.w700)),
+                      Row(children: [
+                        _FilterTab(
+                            label: l10n.healthFilterAll,
+                            selected: _filter == 'all',
+                            onTap: () => setState(() => _filter = 'all')),
+                        const SizedBox(width: 16),
+                        _FilterTab(
+                            label: l10n.healthFilterCritical,
+                            selected: _filter == 'critical',
+                            onTap: () => setState(() => _filter = 'critical')),
+                      ]),
+                    ],
                   ),
-                  Expanded(
-                    child: _cases.isEmpty
-                        ? Center(child: Text(l10n.healthEmpty))
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 100),
-                            itemCount: _cases.length,
-                            itemBuilder: (_, i) => _CaseCard(
-                              healthCase: _cases[i],
-                              onClose: () => _closeCase(_cases[i]),
-                              onDelete: () => _confirmAndDelete(_cases[i]),
-                            ),
-                          ),
-                  ),
+                  const SizedBox(height: 14),
+                  if (visible.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                          child:
+                              Text(l10n.healthEmpty, style: inter(color: kGrey))),
+                    )
+                  else
+                    ...visible.map((c) => _CaseCard(
+                          healthCase: c,
+                          onClose: () => _closeCase(c),
+                          onDelete: () => _confirmAndDelete(c),
+                          onMarkHealing: () => _markHealing(c),
+                          animals: _animals,
+                          onAssign: (earTag) => _assign(c, earTag),
+                        )),
                 ],
               ),
             ),
@@ -103,7 +194,7 @@ class _HealthScreenState extends State<HealthScreen> {
         onPressed: () => _showAddCase(context),
         icon: const Icon(Icons.add),
         label: Text(l10n.healthAddBtn),
-        backgroundColor: const Color(0xFFE53935),
+        backgroundColor: kError,
       ),
     );
   }
@@ -121,6 +212,7 @@ class _HealthScreenState extends State<HealthScreen> {
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
+          final sheetL10n = AppLocalizations.of(ctx);
           final recoveryCtrl = TextEditingController(
               text: recoveryDays != null ? '$recoveryDays' : '');
           return Padding(
@@ -132,19 +224,19 @@ class _HealthScreenState extends State<HealthScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Kasallik holatini yopish',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(sheetL10n.healthCloseSheetTitle,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 4),
                 Text('${c.earTag} — ${c.diagnosis ?? c.symptomsFarmer ?? ''}',
                     style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                 const SizedBox(height: 20),
-                const Text('Natija', style: TextStyle(fontWeight: FontWeight.w600)),
+                Text(sheetL10n.healthResultLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
                 SegmentedButton<String>(
-                  segments: const [
-                    ButtonSegment(value: 'tuzaldi', label: Text('Tuzaldi')),
-                    ButtonSegment(value: 'yomonlashdi', label: Text('Yomonlashdi')),
-                    ButtonSegment(value: 'oldi', label: Text("O'ldi")),
+                  segments: [
+                    ButtonSegment(value: 'tuzaldi', label: Text(sheetL10n.healthOutcomeHealed)),
+                    ButtonSegment(value: 'yomonlashdi', label: Text(sheetL10n.healthOutcomeWorsened)),
+                    ButtonSegment(value: 'oldi', label: Text(sheetL10n.healthOutcomeDied)),
                   ],
                   selected: {outcome},
                   onSelectionChanged: (s) => setSheet(() => outcome = s.first),
@@ -153,9 +245,9 @@ class _HealthScreenState extends State<HealthScreen> {
                 TextField(
                   controller: recoveryCtrl,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Tiklanish kunlari (ixtiyoriy)',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: sheetL10n.healthRecoveryDaysLabel,
+                    border: const OutlineInputBorder(),
                     isDense: true,
                   ),
                   onChanged: (v) {
@@ -166,7 +258,7 @@ class _HealthScreenState extends State<HealthScreen> {
                 const SizedBox(height: 12),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Veterinar tasdiqladi'),
+                  title: Text(sheetL10n.healthVetConfirmedLabel),
                   value: vetConfirmed,
                   onChanged: (v) => setSheet(() => vetConfirmed = v),
                 ),
@@ -201,8 +293,8 @@ class _HealthScreenState extends State<HealthScreen> {
                               if (ctx.mounted) Navigator.pop(ctx);
                               if (mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                  content: const Text('Holat yopildi',
-                                      style: TextStyle(color: Colors.white)),
+                                  content: Text(sheetL10n.healthCaseClosedSnack,
+                                      style: const TextStyle(color: Colors.white)),
                                   backgroundColor: const Color(0xFF2E7D32),
                                   behavior: SnackBarBehavior.floating,
                                   duration: const Duration(seconds: 3),
@@ -213,7 +305,7 @@ class _HealthScreenState extends State<HealthScreen> {
                               setSheet(() => saving = false);
                               if (ctx.mounted) {
                                 ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
-                                  content: Text('Xatolik: $e',
+                                  content: Text(sheetL10n.errorWithDetail('$e'),
                                       style: const TextStyle(color: Colors.white)),
                                   backgroundColor: kError,
                                   behavior: SnackBarBehavior.floating,
@@ -230,8 +322,8 @@ class _HealthScreenState extends State<HealthScreen> {
                             height: 20, width: 20,
                             child: CircularProgressIndicator(
                                 color: Colors.white, strokeWidth: 2))
-                        : const Text('Saqlash va yopish',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
+                        : Text(sheetL10n.healthSaveAndClose,
+                            style: const TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 ),
               ],
@@ -243,20 +335,21 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 
   Future<void> _confirmAndDelete(HealthCase c) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("O'chirishni tasdiqlang"),
-        content: Text("${c.earTag} — ${c.createdAt.substring(0, 10)}\n\nBu kasallik yozuvini o'chirmoqchimisiz?"),
+        title: Text(l10n.deleteConfirmTitle),
+        content: Text("${c.earTag} — ${c.createdAt.substring(0, 10)}\n\n${l10n.healthCaseDeleteBody}"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Bekor'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("O'chirish"),
+            child: Text(l10n.deleteBtn),
           ),
         ],
       ),
@@ -375,11 +468,11 @@ class _HealthScreenState extends State<HealthScreen> {
                           _load();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Kasallik yozuvi saqlandi",
-                                    style: TextStyle(color: Colors.white)),
-                                duration: Duration(seconds: 3),
-                                backgroundColor: Color(0xFF2E7D32),
+                              SnackBar(
+                                content: Text(sheetL10n.healthCaseSavedSnack,
+                                    style: const TextStyle(color: Colors.white)),
+                                duration: const Duration(seconds: 3),
+                                backgroundColor: const Color(0xFF2E7D32),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
@@ -389,7 +482,7 @@ class _HealthScreenState extends State<HealthScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text("Xatolik: $e",
+                                content: Text(sheetL10n.errorWithDetail('$e'),
                                     style: const TextStyle(color: Colors.white)),
                                 duration: const Duration(seconds: 4),
                                 backgroundColor: kError,
@@ -417,129 +510,382 @@ class _HealthScreenState extends State<HealthScreen> {
   }
 }
 
-class _SummaryChip extends StatelessWidget {
-  final int count;
-  final String label;
+/// Headline stat well ("OCHIQ HOLATLAR 12 faol" style).
+class _HealthStatWell extends StatelessWidget {
+  final String label, value, sub;
   final Color color;
 
-  const _SummaryChip({required this.count, required this.label, required this.color});
+  const _HealthStatWell(
+      {required this.label,
+      required this.value,
+      required this.sub,
+      required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: kGreyLight),
       ),
-      child: Text('$count $label',
-          style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: labelBold(color: color)),
+          const SizedBox(height: 8),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(value, style: statNumber(size: 26)),
+              const SizedBox(width: 8),
+              Text(sub, style: inter(size: 13, color: kGrey)),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _CaseCard extends StatelessWidget {
+class _FilterTab extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _FilterTab({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Text(label,
+          style: inter(
+              size: 14,
+              weight: selected ? FontWeight.w700 : FontWeight.w500,
+              color: selected ? kTeal : kGrey)),
+    );
+  }
+}
+
+class _CaseCard extends StatefulWidget {
   final HealthCase healthCase;
   final VoidCallback onClose;
   final VoidCallback onDelete;
+  final VoidCallback? onMarkHealing;
+  final List<Animal> animals;
+  final void Function(String earTag)? onAssign;
 
   const _CaseCard(
       {required this.healthCase,
       required this.onClose,
-      required this.onDelete});
+      required this.onDelete,
+      this.onMarkHealing,
+      this.animals = const [],
+      this.onAssign});
+
+  @override
+  State<_CaseCard> createState() => _CaseCardState();
+}
+
+class _CaseCardState extends State<_CaseCard> {
+  bool _expanded = false;
+
+  Animal? _matchedAnimal() {
+    final c = widget.healthCase;
+    if (!c.isAssigned) return null;
+    try {
+      return widget.animals.firstWhere((a) => a.earTag == c.earTag);
+    } catch (_) {
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final c = healthCase;
+    final c = widget.healthCase;
+    final animal = _matchedAnimal();
+    final hasDetails = c.isOpen || c.isHealing;
     final severityColor = c.isEmergency
         ? kError
         : c.severity == 'urgent'
-            ? const Color(0xFFE65100)
-            : kPrimaryDark;
-
+            ? kStatusDavolanmoqda
+            : kStatusKuzatuvda;
     final severityLabel = c.isEmergency
         ? l10n.severityEmergency
         : c.severity == 'urgent'
             ? l10n.severityUrgent
             : l10n.severityRoutine;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: severityColor.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(severityLabel,
-                    style: TextStyle(color: severityColor, fontSize: 12, fontWeight: FontWeight.w600)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: frostedCard(radius: 24, color: Colors.white),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: kMintSoft,
+                child: Text(
+                    animal != null ? speciesEmoji(animal.species) : '🐾',
+                    style: const TextStyle(fontSize: 22)),
               ),
-              const Spacer(),
-              if (c.isOpen)
-                TextButton(
-                  onPressed: onClose,
-                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
-                  child: Text(l10n.healthClose,
-                      style: const TextStyle(color: kPrimary, fontSize: 12)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      animal != null
+                          ? '${animal.displayName} · ${speciesLabel(animal.species)}'
+                          : (c.isAssigned ? c.earTag : l10n.healthUnassignedLabel),
+                      style: jakarta(size: 15.5, weight: FontWeight.w700),
+                    ),
+                    if (c.isAssigned)
+                      Text('ID: #${c.earTag}',
+                          style: inter(size: 12.5, color: kGrey))
+                    else
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: _AssignRow(
+                            animals: widget.animals, onAssign: widget.onAssign),
+                      ),
+                  ],
                 ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline, size: 18),
-                color: Colors.red[300],
-                tooltip: "O'chirish",
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                onPressed: onDelete,
               ),
-            ]),
-            const SizedBox(height: 6),
-            Text(c.earTag,
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: kOnSurface)),
-            Text(c.createdAt.substring(0, 10),
-                style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 9, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: severityColor,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(severityLabel.toUpperCase(),
+                        style: inter(
+                            size: 10,
+                            weight: FontWeight.w700,
+                            color: Colors.white)),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    c.isHealing
+                        ? statusLabel(l10n, 'davolanmoqda')
+                        : (c.isOpen ? l10n.healthOpen : l10n.healthClosed),
+                    style: inter(
+                        size: 12,
+                        weight: c.isHealing ? FontWeight.w700 : FontWeight.w400,
+                        color: c.isHealing ? kStatusDavolanmoqda : kGrey),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (hasDetails) ...[
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (!_expanded) ...[
+                      Text(l10n.healthViewDetails,
+                          style: inter(
+                              size: 12.5,
+                              weight: FontWeight.w600,
+                              color: kGrey)),
+                      const SizedBox(width: 4),
+                    ],
+                    Icon(
+                        _expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded,
+                        size: 18,
+                        color: kGrey),
+                  ],
+                ),
+              ),
+            ),
+          ],
+          if (_expanded || !hasDetails) ...[
             if (c.symptomsFarmer != null) ...[
               const SizedBox(height: 8),
-              Text('${l10n.animalHealthSymptomsLabel} ${c.symptomsFarmer}',
-                  style: const TextStyle(fontSize: 13)),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: insetWell(radius: 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.healthSymptomsSectionLabel, style: labelBold()),
+                    const SizedBox(height: 4),
+                    Text(c.symptomsFarmer!, style: inter(size: 14, height: 1.4)),
+                  ],
+                ),
+              ),
             ],
             if (c.aiSuggestion != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(10),
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: kPrimary.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: kPrimary.withValues(alpha: 0.15)),
+                  color: kMintSoft,
+                  borderRadius: BorderRadius.circular(14),
                 ),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(l10n.healthAiLabel,
-                      style: const TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.bold, color: kPrimary)),
-                  const SizedBox(height: 4),
-                  Text(
-                    c.aiSuggestion!.length > 150
-                        ? '${c.aiSuggestion!.substring(0, 150)}...'
-                        : c.aiSuggestion!,
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  if (c.aiConfidence != null)
-                    Text(l10n.healthConfidence(c.aiConfidence!),
-                        style: TextStyle(
-                            color: (c.aiConfidence ?? 0) >= 70 ? kPrimary : Colors.orange,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)),
-                ]),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(l10n.healthAiDiagnosisLabel,
+                            style: labelBold(color: kSecondary)),
+                        if (c.aiConfidence != null)
+                          Text(l10n.healthConfidencePercent(c.aiConfidence!),
+                              style: inter(
+                                  size: 11,
+                                  weight: FontWeight.w700,
+                                  color: kSecondary)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      c.aiSuggestion!.length > 150
+                          ? '${c.aiSuggestion!.substring(0, 150)}...'
+                          : c.aiSuggestion!,
+                      style: jakarta(size: 14.5, weight: FontWeight.w700),
+                    ),
+                  ],
+                ),
               ),
             ],
           ],
-        ),
+          if (hasDetails) ...[
+            if (_expanded) ...[
+              const SizedBox(height: 12),
+              Column(children: [
+                if (c.isOpen && widget.onMarkHealing != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: widget.onMarkHealing,
+                        icon: const Icon(Icons.healing_rounded,
+                            size: 18, color: kStatusDavolanmoqda),
+                        label: Text(l10n.healthMarkHealing),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          foregroundColor: kStatusDavolanmoqda,
+                          side: BorderSide(
+                              color: kStatusDavolanmoqda.withValues(alpha: 0.4)),
+                        ),
+                      ),
+                    ),
+                  ),
+                Row(children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: widget.onDelete,
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        foregroundColor: kError,
+                        side: BorderSide(color: kError.withValues(alpha: 0.4)),
+                      ),
+                      child: Text(l10n.deleteBtn),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: widget.onClose,
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: kTeal, minimumSize: const Size(0, 44)),
+                      child: Text(l10n.healthClose),
+                    ),
+                  ),
+                ]),
+              ]),
+            ],
+          ] else ...[
+            const SizedBox(height: 12),
+            Text(
+              l10n.healthClosedSummary(c.createdAt.substring(0, 10)),
+              style: inter(
+                  size: 13, color: kGrey, weight: FontWeight.w500, height: 1.4),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Dropdown shown on an unassigned case card to attach it to an animal.
+class _AssignRow extends StatefulWidget {
+  final List<Animal> animals;
+  final void Function(String earTag)? onAssign;
+
+  const _AssignRow({required this.animals, this.onAssign});
+
+  @override
+  State<_AssignRow> createState() => _AssignRowState();
+}
+
+class _AssignRowState extends State<_AssignRow> {
+  String? _selected;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      decoration: BoxDecoration(
+        color: kStatusDavolanmoqda.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: kStatusDavolanmoqda.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.link_off, size: 16, color: kStatusDavolanmoqda),
+          const SizedBox(width: 6),
+          Expanded(
+            child: DropdownButton<String>(
+              isExpanded: true,
+              value: _selected,
+              hint: Text(l10n.healthAssignHint,
+                  style: inter(
+                      size: 14,
+                      color: kStatusDavolanmoqda,
+                      weight: FontWeight.w600)),
+              underline: const SizedBox.shrink(),
+              items: widget.animals
+                  .map((a) => DropdownMenuItem(
+                        value: a.earTag,
+                        child: Text('${a.displayName} (${a.earTag})',
+                            style: const TextStyle(fontSize: 14)),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() => _selected = v);
+                widget.onAssign?.call(v);
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

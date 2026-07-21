@@ -7,6 +7,7 @@ import '../providers/farm_provider.dart';
 import '../services/db_service.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/agri_nav_bar.dart';
 
 class ArchiveScreen extends StatefulWidget {
   const ArchiveScreen({super.key});
@@ -18,6 +19,7 @@ class ArchiveScreen extends StatefulWidget {
 class _ArchiveScreenState extends State<ArchiveScreen> {
   List<Animal> _animals = [];
   bool _loading = true;
+  String _filter = 'all'; // all | sotildi | oldi
 
   @override
   void initState() {
@@ -39,112 +41,176 @@ class _ArchiveScreenState extends State<ArchiveScreen> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final visible = _filter == 'all'
+        ? _animals
+        : _animals.where((a) => a.status == _filter).toList();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarBrightness: Brightness.dark,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Color(0xFF0A0806),
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: kBg,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: kBg,
         body: NestedScrollView(
           headerSliverBuilder: (_, __) => [
             SliverAppBar(
-              expandedHeight: 160,
+              expandedHeight: 130,
               pinned: true,
               backgroundColor: kHeroDeep,
               systemOverlayStyle: SystemUiOverlayStyle.light,
               leading: IconButton(
-                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white),
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
                 onPressed: () => context.go('/'),
               ),
               flexibleSpace: FlexibleSpaceBar(
                 collapseMode: CollapseMode.pin,
-                background: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [kHeroDeep, kHeroSurface],
-                    ),
+                background: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(32),
+                    bottomRight: Radius.circular(32),
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        const Text('📦', style: TextStyle(fontSize: 38)),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Arxiv',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 30,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        if (!_loading)
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [kHeroDeep, kHeroCard],
+                      ),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 0, 22, 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
                           Text(
-                            l10n.homeAnimalCount(_animals.length),
-                            style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.55),
-                                fontSize: 17),
+                            l10n.archiveTitle,
+                            style: jakarta(
+                                size: 28, weight: FontWeight.w700, color: Colors.white),
                           ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            l10n.archiveSubtitle,
+                            style: inter(
+                                size: 14, color: Colors.white.withValues(alpha: 0.65)),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ],
-          body: _loading
-              ? const Center(child: CircularProgressIndicator(color: kPrimary))
-              : _animals.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 100,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: kGrey.withValues(alpha: 0.08),
-                              border: Border.all(color: kGrey.withValues(alpha: 0.15), width: 1.5),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+                child: Row(children: [
+                  Expanded(
+                      child: _ArchiveFilterChip(
+                          label: l10n.archiveFilterAll,
+                          selected: _filter == 'all',
+                          onTap: () => setState(() => _filter = 'all'))),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _ArchiveFilterChip(
+                          label: l10n.archiveFilterSold,
+                          selected: _filter == 'sotildi',
+                          onTap: () => setState(() => _filter = 'sotildi'))),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _ArchiveFilterChip(
+                          label: l10n.archiveFilterDied,
+                          selected: _filter == 'oldi',
+                          onTap: () => setState(() => _filter = 'oldi'))),
+                ]),
+              ),
+              Expanded(
+                child: _loading
+                    ? const Center(child: CircularProgressIndicator(color: kPrimary))
+                    : visible.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: kMintSoft,
+                                  ),
+                                  child: const Center(
+                                      child: Icon(Icons.inventory_2_outlined,
+                                          size: 42, color: kSage)),
+                                ),
+                                const SizedBox(height: 20),
+                                Text(l10n.archiveEmptyTitle,
+                                    style: jakarta(size: 20, weight: FontWeight.w700)),
+                                const SizedBox(height: 6),
+                                Text(
+                                  l10n.archiveEmptyBody,
+                                  style: inter(color: kGrey, size: 14.5),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
                             ),
-                            child: const Center(child: Text('📦', style: TextStyle(fontSize: 46))),
+                          )
+                        : RefreshIndicator(
+                            onRefresh: _load,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.fromLTRB(20, 4, 20, 100),
+                              itemCount: visible.length,
+                              itemBuilder: (_, i) => _ArchiveCard(
+                                animal: visible[i],
+                                onTap: () => context
+                                    .push('/animal/${visible[i].earTag}')
+                                    .then((_) => _load()),
+                              ),
+                            ),
                           ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            'Arxiv bo\'sh',
-                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: kDark),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            "O'lgan yoki sotilgan hayvonlar bu yerda ko'rinadi",
-                            style: const TextStyle(color: kGrey, fontSize: 15),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    )
-                  : RefreshIndicator(
-                      onRefresh: _load,
-                      child: ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-                        itemCount: _animals.length,
-                        itemBuilder: (_, i) => _ArchiveCard(
-                          animal: _animals[i],
-                          onTap: () => context.push('/animal/${_animals[i].earTag}').then((_) => _load()),
-                        ),
-                      ),
-                    ),
+              ),
+            ],
+          ),
         ),
-        bottomNavigationBar: _ArchiveBottomNav(),
+        bottomNavigationBar: const AgriNavBar(currentIndex: 4),
+      ),
+    );
+  }
+}
+
+class _ArchiveFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ArchiveFilterChip(
+      {required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? kTeal : kCardBg,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: inter(
+              size: 13,
+              weight: FontWeight.w700,
+              color: selected ? Colors.white : kGrey),
+        ),
       ),
     );
   }
@@ -158,128 +224,120 @@ class _ArchiveCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final a = animal;
-    final statusC = a.status == 'oldi' ? kStatusOldi : kStatusSotildi;
+    final sold = a.status != 'oldi';
+    final statusC = sold ? kStatusSotildi : kStatusOldi;
     final gradient = speciesGradient(a.species);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
+        margin: const EdgeInsets.only(bottom: 14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: kCardBg,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: kGreyLight, width: 1),
-          boxShadow: elevatedShadow(depth: 0.4),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: statusC.withValues(alpha: 0.5), width: 1.5),
+          boxShadow: elevatedShadow(depth: 0.5),
         ),
-        child: Row(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              margin: const EdgeInsets.all(14),
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(14),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [gradient[0].withValues(alpha: 0.5), gradient[1].withValues(alpha: 0.5)],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        gradient[0].withValues(alpha: 0.5),
+                        gradient[1].withValues(alpha: 0.5),
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                      child: Text(speciesEmoji(a.species),
+                          style: const TextStyle(fontSize: 22))),
                 ),
-              ),
-              child: Center(child: Text(speciesEmoji(a.species), style: const TextStyle(fontSize: 24))),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(a.displayName,
+                          style: jakarta(size: 16, weight: FontWeight.w700)),
+                      Text('ID: #${a.earTag}',
+                          style: inter(size: 12.5, color: kGrey)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: statusC,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(statusLabel(l10n, a.status),
+                      style: inter(
+                          size: 11.5, weight: FontWeight.w700, color: Colors.white)),
+                ),
+              ],
             ),
-            Expanded(
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: insetWell(radius: 14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    a.displayName,
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: kDark),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(l10n.archiveDateLabel, style: inter(size: 13, color: kGrey)),
+                      Text(
+                        a.deathReason != null && a.deathReason!.length >= 10
+                            ? a.deathReason!.substring(0, 10)
+                            : '—',
+                        style: inter(size: 13, weight: FontWeight.w600),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 2),
-                  Text(a.earTag, style: const TextStyle(fontSize: 14, color: kGrey)),
                   if (a.deathReason != null && a.deathReason!.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      a.deathReason!,
-                      style: const TextStyle(fontSize: 12, color: kGrey),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    const SizedBox(height: 6),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(l10n.archiveReasonLabel, style: inter(size: 13, color: kGrey)),
+                        Flexible(
+                          child: Text(
+                            a.deathReason!,
+                            textAlign: TextAlign.end,
+                            style: inter(
+                                size: 13,
+                                weight: FontWeight.w600,
+                                color: sold ? kDark : kError),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ],
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(right: 14),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusC.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: statusC.withValues(alpha: 0.30), width: 1),
-                ),
-                child: Text(
-                  statusLabel(a.status),
-                  style: TextStyle(fontSize: 13, color: statusC, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ArchiveBottomNav extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: kHeroDeep,
-        border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1)),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.50), blurRadius: 32, offset: const Offset(0, -8)),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: BottomNavigationBar(
-          backgroundColor: Colors.transparent,
-          currentIndex: 4,
-          selectedItemColor: kOrange,
-          unselectedItemColor: const Color(0xFF5A5550),
-          elevation: 0,
-          type: BottomNavigationBarType.fixed,
-          selectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: const TextStyle(fontSize: 13),
-          onTap: (i) {
-            switch (i) {
-              case 0: context.go('/');
-              case 1: context.go('/animals');
-              case 2: context.go('/health');
-              case 3: context.go('/farm');
-              case 4: break;
-            }
-          },
-          items: [
-            BottomNavigationBarItem(icon: const Icon(Icons.home_outlined, size: 24), label: 'Bosh'),
-            BottomNavigationBarItem(icon: const Icon(Icons.pets_outlined, size: 24), label: 'Hayvonlar'),
-            BottomNavigationBarItem(icon: const Icon(Icons.medical_services_outlined, size: 24), label: 'Sog\'liq'),
-            BottomNavigationBarItem(icon: const Icon(Icons.home_work_outlined, size: 24), label: 'Ferma'),
-            BottomNavigationBarItem(
-              icon: const Icon(Icons.inventory_2_outlined, size: 24),
-              activeIcon: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-                decoration: BoxDecoration(
-                  color: kOrange.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: kOrange.withValues(alpha: 0.28), width: 1),
-                ),
-                child: const Icon(Icons.inventory_2_rounded, size: 22, color: kOrange),
-              ),
-              label: 'Arxiv',
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onTap,
+              icon: const Icon(Icons.visibility_outlined, size: 18),
+              label: Text(l10n.archiveDetailsBtn),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 42)),
             ),
           ],
         ),

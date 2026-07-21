@@ -74,8 +74,8 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
         statusBarColor: Colors.transparent,
         statusBarBrightness: Brightness.dark,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Color(0xFF0A0806),
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: kBg,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: kBg,
@@ -131,7 +131,7 @@ class _AnimalsScreenState extends State<AnimalsScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            isYoung ? 'Yosh hayvonlar'
+                            isYoung ? l10n.speciesYoung
                                 : hasFilter ? speciesLabel(sp) : l10n.animalsAllTitle,
                             style: const TextStyle(
                               color: Colors.white,
@@ -229,6 +229,11 @@ class _SearchBar extends StatelessWidget {
           onChanged: onChanged,
           style: const TextStyle(fontSize: 16, color: kDark),
           decoration: InputDecoration(
+            // The global theme sets filled:true; InputBorder.none's fill
+            // shape is a plain RECTANGLE (not rounded), which painted right
+            // over this capsule Container. Disable the field's own fill so
+            // only the capsule Container's rounded background shows.
+            filled: false,
             hintText: hint,
             hintStyle: const TextStyle(color: kGrey, fontSize: 15),
             prefixIcon:
@@ -289,6 +294,7 @@ class _AnimalCardState extends State<_AnimalCard> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final a = widget.animal;
     final color = statusColor(a.status);
     final gradient = speciesGradient(a.species);
@@ -407,7 +413,7 @@ class _AnimalCardState extends State<_AnimalCard> {
                           ),
                           const SizedBox(width: 5),
                           Text(
-                            statusLabel(a.status),
+                            statusLabel(l10n, a.status),
                             style: TextStyle(
                               fontSize: 14,
                               color: color,

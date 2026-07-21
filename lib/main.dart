@@ -118,7 +118,10 @@ class _AgriVetAppState extends State<AgriVetApp> with WidgetsBindingObserver {
         if (ts != null) {
           final elapsed = DateTime.now().millisecondsSinceEpoch - ts;
           if (elapsed > 60000 && mounted) {
-            context.read<FarmProvider>().lock();
+            final provider = context.read<FarmProvider>();
+            // Don't lock mid-way through a trusted system picker (photo
+            // picker, share sheet) — those can legitimately run past 60s.
+            if (!provider.suppressAutoLock) provider.lock();
           }
         }
       });
@@ -285,6 +288,7 @@ class _AgriVetAppState extends State<AgriVetApp> with WidgetsBindingObserver {
       ],
       supportedLocales: const [
         Locale('uz'),
+        Locale.fromSubtags(languageCode: 'uz', scriptCode: 'Cyrl'),
         Locale('ru'),
       ],
     );

@@ -85,14 +85,14 @@ class _SetupScreenState extends State<SetupScreen> {
       // Persist farm to Firestore so other devices can find it by join code.
       final synced = await VetAiService.saveFarmToBackend(farm);
       if (!synced && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(
-            "Ferma yaratildi. Boshqa qurilmalardan qo'shilish uchun internet kerak.",
-            style: TextStyle(color: Colors.white),
+            AppLocalizations.of(context).setupOfflineWarning,
+            style: const TextStyle(color: Colors.white),
           ),
-          backgroundColor: Color(0xFFE65100),
+          backgroundColor: kStatusDavolanmoqda,
           behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 5),
+          duration: const Duration(seconds: 5),
         ));
       }
 

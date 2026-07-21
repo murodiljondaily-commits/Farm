@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:agrivet/l10n/app_localizations.dart';
 import 'package:agrivet/theme.dart';
 
 class PhoneField extends StatelessWidget {
@@ -14,12 +15,13 @@ class PhoneField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return FormField<String>(
       autovalidateMode: autovalidateMode,
       validator: (_) {
         final digits = controller.text.replaceAll(RegExp(r'\D'), '');
-        if (digits.isEmpty) return 'Telefon raqamini kiriting';
-        if (digits.length != 9) return 'Aynan 9 ta raqam kiriting';
+        if (digits.isEmpty) return l10n.phoneFieldEmpty;
+        if (digits.length != 9) return l10n.phoneFieldWrongLength;
         return null;
       },
       builder: (state) {

@@ -68,6 +68,11 @@ dependencies:
   firebase_core: ^3.6.0
   firebase_auth: ^5.3.1
   firebase_storage: ^12.3.0
+  cloud_firestore: ^5.4.4
+
+  # Excel report download + open
+  path_provider: ^2.1.4
+  open_filex: ^4.5.0
 
   # Google sign-in + Sheets (requires google-services.json setup)
   google_sign_in: ^6.2.1

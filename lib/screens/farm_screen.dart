@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:agrivet/theme.dart';
 import 'package:agrivet/providers/farm_provider.dart';
 import 'package:agrivet/providers/locale_provider.dart';
@@ -21,7 +24,12 @@ class FarmScreen extends StatelessWidget {
     final provider = context.watch<FarmProvider>();
     final farm = provider.farm;
     final localeProvider = context.watch<LocaleProvider>();
-    final isUz = localeProvider.locale.languageCode == 'uz';
+    final currentLocale = localeProvider.locale;
+    final isUzLatin =
+        currentLocale.languageCode == 'uz' && currentLocale.scriptCode != 'Cyrl';
+    final isUzCyrl =
+        currentLocale.languageCode == 'uz' && currentLocale.scriptCode == 'Cyrl';
+    final isRu = currentLocale.languageCode == 'ru';
 
     return Scaffold(
       backgroundColor: kBg,
@@ -31,7 +39,7 @@ class FarmScreen extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.edit_outlined, size: 20),
-            tooltip: 'Tahrirlash',
+            tooltip: l10n.farmEditTooltip,
             onPressed: farm == null ? null : () => _showFarmEditSheet(context, farm),
           ),
         ],
@@ -39,194 +47,106 @@ class FarmScreen extends StatelessWidget {
       body: farm == null
           ? Center(child: Text(l10n.farmNoData))
           : ListView(
-              padding: const EdgeInsets.fromLTRB(0, 12, 0, 40),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
               children: [
                 // ── Farm banner ────────────────────────────────────────────
                 _FarmBanner(farm: farm, l10n: l10n),
 
                 const SizedBox(height: 24),
 
-                // ── Farm info ──────────────────────────────────────────────
-                _SectionLabel(l10n.settingsFarmSection),
-                Card(
-                  child: Column(
-                    children: [
-                      _InfoRow(
-                        icon: Icons.home_work_outlined,
-                        label: l10n.settingsFarmName,
-                        value: farm.farmName,
-                      ),
-                      const _CardDivider(),
-                      _CopyRow(
-                        icon: Icons.qr_code_outlined,
-                        label: l10n.settingsFarmCode,
-                        value: farm.farmCode,
-                        copied: l10n.farmCodeCopied,
-                      ),
-                      const _CardDivider(),
-                      _InfoRow(
-                        icon: Icons.location_on_outlined,
-                        label: l10n.settingsLocation,
-                        value: farm.location,
-                      ),
-                      if (farm.phone != null && farm.phone!.isNotEmpty) ...[
-                        const _CardDivider(),
-                        _InfoRow(
-                          icon: Icons.phone_outlined,
-                          label: l10n.settingsPhone,
-                          value: farm.phone!,
-                        ),
-                      ],
-                      if (farm.ownerEmail != null) ...[
-                        const _CardDivider(),
-                        _InfoRow(
-                          icon: Icons.email_outlined,
-                          label: l10n.farmEmailLabel,
-                          value: farm.ownerEmail!,
-                        ),
-                      ],
-                    ],
-                  ),
+                // ── BOSHQARUV (management) ──────────────────────────────────
+                _SectionLabel(l10n.farmSectionManagement),
+                _ActionCard(
+                  icon: Icons.edit_outlined,
+                  title: l10n.settingsFarmSection,
+                  subtitle: l10n.farmEditSubtitle,
+                  onTap: () => _showFarmEditSheet(context, farm),
                 ),
-
-                const SizedBox(height: 8),
-
-                // ── Your account ───────────────────────────────────────────
-                _SectionLabel(l10n.settingsAccountSection),
-                Card(
-                  child: Column(
-                    children: [
-                      _InfoRow(
-                        icon: Icons.account_circle_outlined,
-                        label: l10n.farmYouLabel,
-                        value: provider.userName ?? '',
-                      ),
-                      const _CardDivider(),
-                      _InfoRow(
-                        icon: Icons.person_outline,
-                        label: l10n.farmOwnerLabel,
-                        value: farm.ownerName,
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 10),
+                _ActionCard(
+                  icon: Icons.badge_outlined,
+                  title: l10n.settingsAccountSection,
+                  subtitle: '${provider.userName ?? farm.ownerName} · ${farm.ownerEmail ?? farm.phone ?? ''}',
                 ),
+                const SizedBox(height: 22),
 
-                const SizedBox(height: 8),
-
-                // ── Language ───────────────────────────────────────────────
-                _SectionLabel(l10n.farmLanguage),
-                Card(
-                  child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                    child: Row(children: [
-                      const Icon(Icons.language, color: kOrange, size: 22),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          l10n.farmLanguage,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w500, fontSize: 15),
-                        ),
-                      ),
-                      ToggleButtons(
-                        isSelected: [isUz, !isUz],
-                        onPressed: (i) => localeProvider
-                            .setLocale(Locale(i == 0 ? 'uz' : 'ru')),
-                        borderRadius: BorderRadius.circular(10),
-                        selectedColor: Colors.white,
-                        fillColor: kPrimary,
-                        color: kDark,
-                        constraints: const BoxConstraints(
-                            minWidth: 72, minHeight: 38),
-                        children: [
-                          Text(l10n.farmLanguageUz,
-                              style: const TextStyle(fontSize: 13)),
-                          Text(l10n.farmLanguageRu,
-                              style: const TextStyle(fontSize: 13)),
-                        ],
-                      ),
-                    ]),
-                  ),
-                ),
-
-                const SizedBox(height: 8),
-
-                // ── Security ───────────────────────────────────────────────
-                _SectionLabel(l10n.settingsSecuritySection),
-                Card(
-                  child: Column(
-                    children: [
-                      _ActionRow(
-                        icon: Icons.lock_outline,
-                        iconBg: const Color(0xFFE3F2FD),
-                        iconColor: const Color(0xFF1565C0),
-                        title: l10n.farmChangePin,
-                        onTap: () => context.push('/change-pin'),
-                      ),
-                      const _CardDivider(),
-                      _ActionRow(
-                        icon: Icons.lock_person_outlined,
-                        iconBg: const Color(0xFFFFF3E0),
-                        iconColor: const Color(0xFFE65100),
-                        title: l10n.farmLock,
-                        onTap: () async {
-                          await provider.lock();
-                          if (context.mounted) context.go('/pin');
-                        },
-                      ),
-                      if (farm.sheetUrl != null) ...[
-                        const _CardDivider(),
-                        _ActionRow(
-                          icon: Icons.table_chart_outlined,
-                          iconBg: const Color(0xFFE8F5E9),
-                          iconColor: const Color(0xFF388E3C),
-                          title: l10n.farmSheets,
-                          subtitle: l10n.farmSheetsSubtitle,
-                          trailingIcon: Icons.open_in_new,
-                          onTap: () => _openUrl(farm.sheetUrl!, context),
-                        ),
-                      ] else ...[
-                        const _CardDivider(),
-                        _ActionRow(
-                          icon: Icons.add_chart_outlined,
-                          iconBg: const Color(0xFFE8F5E9),
-                          iconColor: const Color(0xFF388E3C),
-                          title: 'Google Sheet yaratish',
-                          subtitle: "Hayvonlar ro'yxatini Google Sheets bilan ulash",
-                          onTap: () => _createSheet(context, farm),
-                        ),
+                // ── XAVFSIZLIK VA TIL ────────────────────────────────────────
+                _SectionLabel(l10n.farmSectionSecurityLang),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                  decoration: frostedCard(radius: 20, color: Colors.white),
+                  child: Row(children: [
+                    _SettingsIconWell(icon: Icons.language_rounded),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(l10n.farmLanguage,
+                          style: jakarta(size: 15, weight: FontWeight.w600)),
+                    ),
+                    ToggleButtons(
+                      isSelected: [isUzLatin, isUzCyrl, isRu],
+                      onPressed: (i) => localeProvider.setLocale(switch (i) {
+                        0 => const Locale('uz'),
+                        1 => const Locale.fromSubtags(
+                            languageCode: 'uz', scriptCode: 'Cyrl'),
+                        _ => const Locale('ru'),
+                      }),
+                      borderRadius: BorderRadius.circular(999),
+                      selectedColor: Colors.white,
+                      fillColor: kMint,
+                      color: kDark,
+                      constraints: const BoxConstraints(minWidth: 48, minHeight: 36),
+                      children: [
+                        Text(l10n.farmLanguageUz, style: inter(size: 12, weight: FontWeight.w700)),
+                        Text(l10n.farmLanguageUzCyrl, style: inter(size: 12, weight: FontWeight.w700)),
+                        Text(l10n.farmLanguageRu, style: inter(size: 12, weight: FontWeight.w700)),
                       ],
-                    ],
-                  ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 10),
+                _ActionCard(
+                  icon: Icons.lock_outline_rounded,
+                  title: l10n.farmChangePin,
+                  onTap: () => context.push('/change-pin'),
+                ),
+                const SizedBox(height: 22),
+
+                // ── EKSPORT VA XIZMATLAR ─────────────────────────────────────
+                _SectionLabel(l10n.farmSectionExport),
+                _DarkActionCard(
+                  icon: Icons.grid_on_rounded,
+                  title: l10n.farmExcelExportTitle,
+                  subtitle: l10n.farmExcelExportSubtitle,
+                  onTap: () => _downloadExcelReport(context, farm),
+                ),
+                const SizedBox(height: 10),
+                _ActionCard(
+                  icon: Icons.lock_person_outlined,
+                  title: l10n.farmLock,
+                  onTap: () async {
+                    await provider.lock();
+                    if (context.mounted) context.go('/pin');
+                  },
                 ),
 
                 const SizedBox(height: 28),
 
                 // ── Logout ─────────────────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kError,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        minimumSize: const Size(0, 52),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                      icon: const Icon(Icons.logout, size: 20),
-                      label: Text(
-                        l10n.farmLogout,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 16),
-                      ),
-                      onPressed: () =>
-                          _confirmLogout(context, provider, l10n),
-                    ),
+                OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: kError,
+                    side: BorderSide(color: kError.withValues(alpha: 0.4)),
+                    minimumSize: const Size(double.infinity, 52),
                   ),
+                  icon: const Icon(Icons.logout_rounded, size: 20),
+                  label: Text(l10n.farmLogout,
+                      style: jakarta(size: 15.5, weight: FontWeight.w700, color: kError)),
+                  onPressed: () => _confirmLogout(context, provider, l10n),
+                ),
+                const SizedBox(height: 16),
+                Center(
+                  child: Text(l10n.farmVersionFooter,
+                      style: inter(size: 12, color: kGrey)),
                 ),
               ],
             ),
@@ -245,7 +165,9 @@ class FarmScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (sheetCtx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Padding(
+        builder: (ctx, setSheet) {
+          final sheetL10n = AppLocalizations.of(ctx);
+          return Padding(
           padding: EdgeInsets.fromLTRB(
               20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 28),
           child: Column(
@@ -263,9 +185,9 @@ class FarmScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              const Text(
-                'Ferma ma\'lumotlari',
-                style: TextStyle(
+              Text(
+                sheetL10n.farmEditSheetTitle,
+                style: const TextStyle(
                     fontSize: 22,
                     fontWeight: FontWeight.w800,
                     color: kDark),
@@ -275,7 +197,7 @@ class FarmScreen extends StatelessWidget {
                 controller: nameCtrl,
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
-                  labelText: 'Ferma nomi',
+                  labelText: sheetL10n.farmNameLabel,
                   prefixIcon: const Icon(Icons.home_work_outlined),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14)),
@@ -286,7 +208,7 @@ class FarmScreen extends StatelessWidget {
                 controller: locCtrl,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  labelText: 'Joylashuv',
+                  labelText: sheetL10n.farmLocationLabel,
                   prefixIcon: const Icon(Icons.location_on_outlined),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(14)),
@@ -316,58 +238,41 @@ class FarmScreen extends StatelessWidget {
                           height: 20,
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Saqlash'),
+                      : Text(sheetL10n.save),
                 ),
               ),
             ],
           ),
-        ),
+        );
+        },
       ),
     );
   }
 
-  Future<void> _createSheet(BuildContext context, Farm farm) async {
-    final email = farm.ownerEmail ?? '';
-    if (email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sheet yaratish uchun email manzil kerak')),
-      );
-      return;
-    }
+  Future<void> _downloadExcelReport(BuildContext context, Farm farm) async {
+    final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Google Sheet yaratilmoqda...'),
-        duration: Duration(seconds: 30),
+      SnackBar(
+        content: Text(l10n.farmExcelGenerating),
+        duration: const Duration(seconds: 20),
         behavior: SnackBarBehavior.floating,
       ),
     );
     try {
-      final sheetUrl = await VetAiService.createSheet(farm.farmId, email);
+      final bytes = await VetAiService.downloadExcelReport(farm.farmId);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      if (sheetUrl != null) {
-        await DbService.updateFarmSheetUrl(farm.farmId, sheetUrl);
-        if (context.mounted) {
-          await context.read<FarmProvider>().refreshFarm();
-        }
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Google Sheet muvaffaqiyatli yaratildi'),
-              action: SnackBarAction(
-                label: 'Ochish',
-                onPressed: () => _openUrl(sheetUrl, context),
-              ),
-              duration: const Duration(seconds: 4),
-              backgroundColor: const Color(0xFF388E3C),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        }
+      if (bytes != null) {
+        final dir = await getTemporaryDirectory();
+        final safeName = farm.farmName.replaceAll(RegExp(r'[^\w\-]'), '_');
+        final dateStr = DateTime.now().toIso8601String().substring(0, 10);
+        final file = File('${dir.path}/AgriVet_${safeName}_$dateStr.xlsx');
+        await file.writeAsBytes(bytes);
+        await OpenFilex.open(file.path);
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text("Sheet yaratishda xatolik yuz berdi")),
+            SnackBar(content: Text(l10n.farmExcelError)),
           );
         }
       }
@@ -375,37 +280,7 @@ class FarmScreen extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).hideCurrentSnackBar();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Sheet yaratishda xatolik yuz berdi")),
-        );
-      }
-    }
-  }
-
-  Future<void> _openUrl(String url, BuildContext context) async {
-    final uri = Uri.parse(url.startsWith('http') ? url : 'https://$url');
-    try {
-      final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      if (!launched && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("Havola ochib bo'lmadi",
-                style: TextStyle(color: Colors.white)),
-            duration: Duration(seconds: 3),
-            backgroundColor: Color(0xFFC23B2A),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text("Xatolik: $e",
-                style: const TextStyle(color: Colors.white)),
-            duration: const Duration(seconds: 3),
-            backgroundColor: const Color(0xFFC23B2A),
-            behavior: SnackBarBehavior.floating,
-          ),
+          SnackBar(content: Text(l10n.farmExcelError)),
         );
       }
     }
@@ -473,154 +348,127 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 4, 16, 6),
-      child: Text(
-        text.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: kGrey,
-          letterSpacing: 0.8,
-        ),
-      ),
+      padding: const EdgeInsets.fromLTRB(4, 4, 16, 10),
+      child: Text(text.toUpperCase(), style: labelBold()),
     );
   }
 }
 
-// ── Thin divider inside a card ────────────────────────────────────────────────
-
-class _CardDivider extends StatelessWidget {
-  const _CardDivider();
-
-  @override
-  Widget build(BuildContext context) =>
-      const Divider(height: 1, indent: 56, endIndent: 0);
-}
-
-// ── Read-only info row ────────────────────────────────────────────────────────
-
-class _InfoRow extends StatelessWidget {
+/// Mint icon well used in front of each settings row (matches ferma_sozlamalari).
+class _SettingsIconWell extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final String value;
-
-  const _InfoRow({required this.icon, required this.label, required this.value});
+  const _SettingsIconWell({required this.icon});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-      child: Row(children: [
-        Icon(icon, color: kOrange, size: 22),
-        const SizedBox(width: 14),
-        SizedBox(
-          width: 110,
-          child: Text(label,
-              style: TextStyle(color: kGrey, fontSize: 13)),
-        ),
-        Expanded(
-          child: Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-            textAlign: TextAlign.end,
-          ),
-        ),
-      ]),
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: const BoxDecoration(color: kMintSoft, shape: BoxShape.circle),
+      child: Icon(icon, color: kSecondary, size: 20),
     );
   }
 }
 
-// ── Tappable copy row (for farm code) ────────────────────────────────────────
-
-class _CopyRow extends StatelessWidget {
+/// Light settings row card with chevron (Ferma tahrirlash, PIN kodni o'zgartirish…).
+class _ActionCard extends StatelessWidget {
   final IconData icon;
-  final String label;
-  final String value;
-  final String copied;
+  final String title;
+  final String? subtitle;
+  final VoidCallback? onTap;
 
-  const _CopyRow({
+  const _ActionCard({
     required this.icon,
-    required this.label,
-    required this.value,
-    required this.copied,
+    required this.title,
+    this.subtitle,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(4),
-      onTap: () {
-        Clipboard.setData(ClipboardData(text: value));
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(copied)));
-      },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        child: Row(children: [
-          Icon(icon, color: kOrange, size: 22),
-          const SizedBox(width: 14),
-          SizedBox(
-            width: 110,
-            child: Text(label, style: TextStyle(color: kGrey, fontSize: 13)),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                letterSpacing: 1.2,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: frostedCard(radius: 20, color: Colors.white),
+          child: Row(children: [
+            _SettingsIconWell(icon: icon),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: jakarta(size: 15, weight: FontWeight.w600)),
+                  if (subtitle != null)
+                    Text(subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: inter(size: 12.5, color: kGrey)),
+                ],
               ),
-              textAlign: TextAlign.end,
             ),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.copy_outlined, color: kGrey, size: 16),
-        ]),
+            if (onTap != null)
+              const Icon(Icons.chevron_right_rounded, color: kGrey),
+          ]),
+        ),
       ),
     );
   }
 }
 
-// ── Tappable action row ───────────────────────────────────────────────────────
-
-class _ActionRow extends StatelessWidget {
+/// Dark teal highlighted row (Excel report export — per ferma_sozlamalari).
+class _DarkActionCard extends StatelessWidget {
   final IconData icon;
-  final Color iconBg;
-  final Color iconColor;
   final String title;
   final String? subtitle;
-  final IconData trailingIcon;
   final VoidCallback onTap;
 
-  const _ActionRow({
+  const _DarkActionCard({
     required this.icon,
-    required this.iconBg,
-    required this.iconColor,
     required this.title,
     this.subtitle,
-    this.trailingIcon = Icons.chevron_right,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      onTap: onTap,
-      leading: CircleAvatar(
-        backgroundColor: iconBg,
-        radius: 20,
-        child: Icon(icon, color: iconColor, size: 20),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(20),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: kTeal,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(children: [
+            Icon(icon, color: kMintBright, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: jakarta(
+                          size: 15, weight: FontWeight.w700, color: Colors.white)),
+                  if (subtitle != null)
+                    Text(subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: inter(
+                            size: 12.5, color: Colors.white.withValues(alpha: 0.65))),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.8), size: 20),
+          ]),
+        ),
       ),
-      title: Text(title,
-          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 15)),
-      subtitle: subtitle != null
-          ? Text(subtitle!,
-              style: TextStyle(fontSize: 12, color: kGrey))
-          : null,
-      trailing: Icon(trailingIcon, color: kGrey, size: 18),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
     );
   }
 }
@@ -635,83 +483,71 @@ class _FarmBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: kDark,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: clayShadow(depth: 1.0),
+    return Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [kHeroDeep, kHeroCard],
         ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: kOrange.withValues(alpha: 0.22),
-                borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: heroShadow(glowColor: kMint),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            farm.farmName,
+            style: jakarta(size: 24, weight: FontWeight.w700, color: kMintBright),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          if (farm.location.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Row(children: [
+              Icon(Icons.location_on_outlined,
+                  color: Colors.white.withValues(alpha: 0.6), size: 16),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  farm.location,
+                  style: inter(size: 14, color: Colors.white.withValues(alpha: 0.65)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ),
-              child: const Icon(Icons.home_work_outlined,
-                  color: kOrangeLight, size: 28),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    farm.farmName,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (farm.location.isNotEmpty)
-                    Text(
-                      farm.location,
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.55),
-                          fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: () {
-                      Clipboard.setData(ClipboardData(text: farm.farmCode));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(l10n.farmCodeCopied)),
-                      );
-                    },
-                    child: Row(children: [
-                      const Icon(Icons.qr_code,
-                          color: kOrangeLight, size: 14),
-                      const SizedBox(width: 5),
-                      Text(
-                        farm.farmCode,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Icon(Icons.copy,
-                          color: Colors.white.withValues(alpha: 0.4),
-                          size: 13),
-                    ]),
-                  ),
-                ],
-              ),
-            ),
+            ]),
           ],
-        ),
+          const SizedBox(height: 16),
+          GestureDetector(
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: farm.farmCode));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text(l10n.farmCodeCopied)),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: kMint.withValues(alpha: 0.4)),
+              ),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Text('ID: ${farm.farmCode}',
+                    style: inter(
+                        size: 13,
+                        weight: FontWeight.w700,
+                        color: kMintBright,
+                        letterSpacing: 0.8)),
+                const SizedBox(width: 6),
+                Icon(Icons.copy_rounded,
+                    color: Colors.white.withValues(alpha: 0.5), size: 13),
+              ]),
+            ),
+          ),
+        ],
       ),
     );
   }

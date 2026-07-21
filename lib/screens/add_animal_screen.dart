@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as p;
+import 'package:sqflite/sqflite.dart' show getDatabasesPath;
 import '../theme.dart';
 import '../providers/farm_provider.dart';
 import '../services/db_service.dart';
@@ -31,6 +36,8 @@ class _AddAnimalScreenState extends State<AddAnimalScreen> {
   String _sex = 'erkak';
   DateTime? _dob;
   bool _loading = false;
+  String? _photoPath;
+  final _picker = ImagePicker();
 
   String _pregnancyStatus = 'none';
   int _pregnancyMonth = 1;
@@ -63,11 +70,80 @@ class _AddAnimalScreenState extends State<AddAnimalScreen> {
         fatherEarTag: _fatherCtrl.text.trim().isNotEmpty ? _fatherCtrl.text.trim() : null,
         pregnancyStatus: _sex == 'urdona' ? _pregnancyStatus : 'none',
         pregnancyMonth: (_sex == 'urdona' && _pregnancyStatus == 'pregnant') ? _pregnancyMonth : null,
+        photoFileId: _photoPath,
       );
       await DbService.saveAnimal(animal);
       if (mounted) Navigator.of(context).pop();
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _pickPhoto() async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            ListTile(
+              leading: const Icon(Icons.camera_alt_rounded, color: kPrimary),
+              title: const Text('Kamera'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library_rounded, color: kPrimary),
+              title: const Text('Galereya'),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            if (_photoPath != null)
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: kError),
+                title: const Text("Rasmni o'chirish"),
+                onTap: () => Navigator.pop(context, 'remove'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    if (action == 'remove') {
+      setState(() => _photoPath = null);
+      return;
+    }
+
+    final source =
+        action == 'camera' ? ImageSource.camera : ImageSource.gallery;
+    // The gallery/camera Activity can legitimately keep the app backgrounded
+    // past the 60s auto-lock threshold — suppress it for this call only.
+    final farmProvider = context.read<FarmProvider>();
+    farmProvider.beginTrustedBackgroundTask();
+    final XFile? xfile;
+    try {
+      xfile = await _picker.pickImage(
+          source: source, imageQuality: 80, maxWidth: 1280);
+    } finally {
+      farmProvider.endTrustedBackgroundTask();
+    }
+    if (xfile == null || !mounted) return;
+    final pickedPath = xfile.path;
+    try {
+      // Copy into the app's stable DB dir so the photo survives temp cleanup.
+      final dir = await getDatabasesPath();
+      final ext =
+          p.extension(pickedPath).isNotEmpty ? p.extension(pickedPath) : '.jpg';
+      final dest =
+          p.join(dir, 'animal_${DateTime.now().millisecondsSinceEpoch}$ext');
+      await File(pickedPath).copy(dest);
+      if (mounted) setState(() => _photoPath = dest);
+    } catch (_) {
+      if (mounted) setState(() => _photoPath = pickedPath); // fallback: temp path
     }
   }
 
@@ -131,6 +207,44 @@ class _AddAnimalScreenState extends State<AddAnimalScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            Center(
+              child: GestureDetector(
+                onTap: _pickPhoto,
+                child: Column(
+                  children: [
+                    Container(
+                      width: 110,
+                      height: 110,
+                      decoration: BoxDecoration(
+                        color: kPrimary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                            color: kPrimary.withValues(alpha: 0.35), width: 1.5),
+                        image: _photoPath != null
+                            ? DecorationImage(
+                                image: FileImage(File(_photoPath!)),
+                                fit: BoxFit.cover,
+                              )
+                            : null,
+                      ),
+                      child: _photoPath != null
+                          ? null
+                          : const Icon(Icons.add_a_photo_rounded,
+                              color: kPrimary, size: 34),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _photoPath != null
+                          ? "Rasmni o'zgartirish"
+                          : 'Hayvon rasmi',
+                      style: const TextStyle(
+                          color: kPrimary, fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(12),

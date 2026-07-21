@@ -13,11 +13,28 @@
   "yes": "Ha",
   "deleteBtn": "O'chirish",
   "closeBtn": "Yopish",
+  "deleteConfirmTitle": "O'chirishni tasdiqlang",
+  "deleteConfirmBody": "Bu yozuvni o'chirmoqchimisiz?",
+  "errorWithDetail": "Xatolik: {error}",
+  "@errorWithDetail": {
+    "placeholders": { "error": {"type": "String"} }
+  },
   "openStatus": "Ochiq",
   "closedStatus": "Yopiq",
   "enterHint": "Kiriting",
   "enterNumber": "Raqam kiriting",
   "fieldRequired": "Maydonni to'ldiring",
+
+  "proposedActionDone": "Bajarildi",
+  "proposedActionCancelled": "Bekor qilindi",
+  "proposedActionDefaultSummary": "Amalni tasdiqlang",
+  "proposedActionNeedsConfirm": "Tasdiqlash kerak",
+  "proposedActionAffectedCount": "{count} ta hayvon",
+  "@proposedActionAffectedCount": {
+    "placeholders": { "count": {"type": "int"} }
+  },
+  "proposedActionCancelBtn": "Bekor qilish",
+  "proposedActionError": "Xatolik — qayta urining",
 
   "roleOwner": "Ferma egasi",
   "roleVet": "Veterinar",
@@ -38,6 +55,7 @@
   "speciesEchkiPlural": "Echkilar",
   "speciesOtPlural": "Otlar",
   "speciesAll": "Barchasi",
+  "speciesYoung": "Yosh hayvonlar",
 
   "statusSoglom": "Sog'lom",
   "statusDavolanmoqda": "Davolanmoqda",
@@ -64,6 +82,8 @@
   "phoneNumberHint": "XX XXX XX XX",
   "phoneSendCode": "SMS kod yuborish",
   "phoneInvalidNumber": "Telefon raqamni to'g'ri kiriting",
+  "phoneFieldEmpty": "Telefon raqamini kiriting",
+  "phoneFieldWrongLength": "Aynan 9 ta raqam kiriting",
   "phoneTooManyRequests": "Juda ko'p urinish. Keyinroq urinib ko'ring.",
   "phoneError": "Xatolik yuz berdi. Qayta urinib ko'ring.",
   "phoneOtpTitle": "SMS kodni kiriting",
@@ -128,8 +148,10 @@
   "joinEmailLabel": "Email (ixtiyoriy)",
   "joinPhoneLabel": "Telefon raqami",
   "joinSubmit": "So'rov yuborish",
+  "setupOfflineWarning": "Ferma yaratildi. Boshqa qurilmalardan qo'shilish uchun internet kerak.",
 
   "pinSubtitle": "PIN kodingizni kiriting",
+  "farmPinGateSubtitle": "Farm sozlamalariga kirish uchun PIN kiriting",
   "pinGreeting": "Salom, {name}!",
   "@pinGreeting": {
     "placeholders": { "name": {"type": "String"} }
@@ -177,12 +199,22 @@
   },
   "homeTotalAnimals": "Jami hayvon",
   "homeTodayMilk": "Jami sut",
+  "homeTodayPrefix": "Bugun,",
+  "homeFarmStatusTitle": "Farm holati",
+  "homeTotalAnimalsLabel": "JAMI HAYVONLAR",
+  "homeAllTypesLabel": "Barcha turlar",
+  "homeHealthyStatLabel": "SOG'LOM",
+  "homeTreatingLabel": "DAVOLANAYOTGAN",
+  "homeWarningLabel": "OGOHLANTIRISH",
+  "homeAttentionNeeded": "E'tibor talab!",
+  "homeTodayMilkLabel": "BUGUNGI SUT",
   "homeAnimalsSection": "Hayvonlar",
   "homeQuickActions": "Tezkor amallar",
   "homeNavHome": "Bosh",
   "homeNavAnimals": "Hayvonlar",
   "homeNavHealth": "Kasallik",
   "homeNavFarm": "Ferma",
+  "homeNavArchive": "Arxiv",
   "homeActionHealth": "Kasallik holati",
   "homeActionHealthSub": "Belgilarni kiriting, AI tashxis qo'yadi",
   "homeActionVacc": "Emlash",
@@ -200,8 +232,6 @@
 
   "farmTitle": "Ferma",
   "farmNoData": "Ferma ma'lumoti topilmadi",
-  "farmSheets": "Google Sheets",
-  "farmSheetsSubtitle": "Ferma ma'lumotlarini ko'ring",
   "farmChangePin": "PIN kodni o'zgartirish",
   "farmLock": "Qulflash",
   "farmLogout": "Chiqish",
@@ -211,8 +241,22 @@
   "farmYouLabel": "Siz",
   "farmRoleLabel": "Rol",
   "farmCodeCopied": "Farm kodi nusxalandi",
+  "farmEditTooltip": "Tahrirlash",
+  "farmSectionManagement": "BOSHQARUV",
+  "farmSectionSecurityLang": "XAVFSIZLIK VA TIL",
+  "farmSectionExport": "EKSPORT VA XIZMATLAR",
+  "farmEditSubtitle": "Nomi, manzili va turi",
+  "farmExcelExportTitle": "Excel hisobot",
+  "farmExcelExportSubtitle": "Ferma hisobotini yuklab oling",
+  "farmVersionFooter": "AgriVet v2.4.0 · Build 2030.A1",
+  "farmEditSheetTitle": "Ferma ma'lumotlari",
+  "farmNameLabel": "Ferma nomi",
+  "farmLocationLabel": "Joylashuv",
+  "farmExcelGenerating": "Hisobot tayyorlanmoqda...",
+  "farmExcelError": "Hisobotni yuklab olishda xatolik yuz berdi",
   "farmLanguage": "Til",
   "farmLanguageUz": "🇺🇿 O'zbek",
+  "farmLanguageUzCyrl": "🇺🇿 Ўзбек",
   "farmLanguageRu": "🇷🇺 Русский",
 
   "settingsTitle": "Sozlamalar",
@@ -236,6 +280,17 @@
     "placeholders": { "species": {"type": "String"} }
   },
   "animalsAddNew": "Yangi hayvon qo'shing",
+
+  "archiveTitle": "Arxiv",
+  "archiveSubtitle": "Sotilgan va o'lgan hayvonlar tarixi",
+  "archiveFilterAll": "Hammasi",
+  "archiveFilterSold": "Sotilgan",
+  "archiveFilterDied": "O'lgan",
+  "archiveEmptyTitle": "Arxiv bo'sh",
+  "archiveEmptyBody": "O'lgan yoki sotilgan hayvonlar bu yerda ko'rinadi",
+  "archiveDateLabel": "Sana:",
+  "archiveReasonLabel": "Sabab:",
+  "archiveDetailsBtn": "Tafsilotlar",
 
   "addAnimalTitle": "Hayvon qo'shish",
   "addAnimalSpeciesSection": "Tur",
@@ -270,11 +325,48 @@
   "healthSymptomsRequired": "Belgilarni kiriting",
   "healthSeverityLabel": "Jiddiylik",
   "healthClose": "Yopish",
+  "healthMarkHealing": "Davolanmoqda deb belgilash",
+  "healthViewDetails": "Batafsil ko'rish",
   "healthAiLabel": "🤖 AI tashxisi:",
   "healthConfidence": "Ishonch: {pct}%",
   "@healthConfidence": {
     "placeholders": { "pct": {"type": "int"} }
   },
+  "healthAssignedSnack": "✅ {earTag} hayvoniga biriktirildi",
+  "@healthAssignedSnack": {
+    "placeholders": { "earTag": {"type": "String"} }
+  },
+  "healthMarkedHealingSnack": "Davolanmoqda deb belgilandi",
+  "healthStatOpenLabel": "OCHIQ HOLATLAR",
+  "healthStatActive": "faol",
+  "healthStatCriticalLabel": "KRITIK",
+  "healthStatUrgent": "shoshilinch",
+  "healthJournalTitle": "Sog'liq jurnali",
+  "healthFilterAll": "Hammasi",
+  "healthFilterCritical": "Kritik",
+  "healthCloseSheetTitle": "Kasallik holatini yopish",
+  "healthResultLabel": "Natija",
+  "healthOutcomeHealed": "Tuzaldi",
+  "healthOutcomeWorsened": "Yomonlashdi",
+  "healthOutcomeDied": "O'ldi",
+  "healthRecoveryDaysLabel": "Tiklanish kunlari (ixtiyoriy)",
+  "healthVetConfirmedLabel": "Veterinar tasdiqladi",
+  "healthCaseClosedSnack": "Holat yopildi",
+  "healthSaveAndClose": "Saqlash va yopish",
+  "healthCaseDeleteBody": "Bu kasallik yozuvini o'chirmoqchimisiz?",
+  "healthCaseSavedSnack": "Kasallik yozuvi saqlandi",
+  "healthUnassignedLabel": "Hayvon tayinlanmagan",
+  "healthSymptomsSectionLabel": "ALOMATLAR",
+  "healthAiDiagnosisLabel": "SONYA AI TASHXISI",
+  "healthConfidencePercent": "{pct}% ISHONCH",
+  "@healthConfidencePercent": {
+    "placeholders": { "pct": {"type": "int"} }
+  },
+  "healthClosedSummary": "Ushbu holat muvaffaqiyatli yakunlangan. Oxirgi ko'rik: {date}.",
+  "@healthClosedSummary": {
+    "placeholders": { "date": {"type": "String"} }
+  },
+  "healthAssignHint": "Hayvonga biriktirish",
 
   "animalNotFoundTitle": "Hayvon topilmadi",
   "animalNotFoundBody": "Bu hayvon topilmadi",
@@ -329,6 +421,39 @@
   "@animalHealthConfidence": {
     "placeholders": { "pct": {"type": "int"} }
   },
+  "animalMenuHealthy": "✅ Sog'lom qilish",
+  "animalDeathReasonLabel": "O'lim sababi",
+  "animalDeathReasonRequired": "Sabab kiritish shart",
+  "animalSoldReasonLabel": "Izoh (ixtiyoriy)",
+  "animalEditSheetTitle": "Tahrirlash",
+  "animalNameLabel": "Ism",
+  "animalBreedFieldLabel": "Zoti",
+  "animalColorFieldLabel": "Rangi",
+  "animalMotherFieldLabel": "Onaning quloq raqami",
+  "animalFatherFieldLabel": "Otaning quloq raqami",
+  "animalPregnancyStatusTitle": "Homiladorlik holati",
+  "animalPregnancyNone": "Yo'q",
+  "animalPregnancyPregnant": "Homilador",
+  "animalPregnancyUnknown": "Tekshirilmagan",
+  "animalPregnancyMonthLabel": "Homiladorlik oyi:",
+  "animalPregnantWithMonth": "{month} oy homilador 🤰",
+  "@animalPregnantWithMonth": {
+    "placeholders": { "month": {"type": "int"} }
+  },
+  "animalPregnantGeneric": "Homilador 🤰",
+  "animalAgeYearsMonths": "{years} yil {months} oy",
+  "@animalAgeYearsMonths": {
+    "placeholders": { "years": {"type": "int"}, "months": {"type": "int"} }
+  },
+  "animalAgeYears": "{years} yil",
+  "@animalAgeYears": {
+    "placeholders": { "years": {"type": "int"} }
+  },
+  "animalAgeMonths": "{months} oy",
+  "@animalAgeMonths": {
+    "placeholders": { "months": {"type": "int"} }
+  },
+  "animalStatusPickerTitle": "Holatni o'zgartirish",
 
   "milkTitle": "🥛 Sut",
   "milkTodayLabel": "Bugungi sut",
@@ -339,6 +464,23 @@
   "milkAmountLabel": "Miqdor (litr)",
   "milkMorningTitle": "🌅 Ertalab sut",
   "milkEveningTitle": "🌙 Kechqurun sut",
+  "milkHeroLabel": "SUT YOZUVI",
+  "milkHeroTitle": "Bugungi jami sut",
+  "milkLitersUnit": "Litr",
+  "milkYesterday": "Kecha: {liters} L",
+  "@milkYesterday": {
+    "placeholders": { "liters": {"type": "String"} }
+  },
+  "milkDuplicateWarning": "Bugun 2 mahal sut allaqachon qo'shilgan. Yana sut qo'shmoqchimisiz?",
+  "milkMorningEntry": "Ertalabki sut",
+  "milkEveningEntry": "Kechqurungi sut",
+  "milkAnalysisLabel": "TAHLIL",
+  "milkTrendRising": "So'nggi 3 kunda sut unumdorligi barqaror o'sib bormoqda. Ozuqa tarkibini hozirgi holatda saqlab qolish tavsiya etiladi.",
+  "milkTrendFalling": "So'nggi 3 kunda sut unumdorligi pasaymoqda. Ozuqa va suv ta'minotini tekshirib ko'ring.",
+  "milkTrendStable": "So'nggi 3 kunlik o'rtacha sut hajmi {avg} litr. Barqaror holat kuzatilmoqda.",
+  "@milkTrendStable": {
+    "placeholders": { "avg": {"type": "String"} }
+  },
 
   "vaccTitle": "💉 Emlash",
   "vaccDueSoon": "⚠️ Yaqinlashgan emlashlar ({count})",
@@ -362,6 +504,28 @@
     "placeholders": { "date": {"type": "String"} }
   },
   "vaccNextLabel": "Keyingi:",
+  "vaccSubtitle": "Chorva mollari sog'lig'ini nazorat qilish va boshqarish",
+  "vaccUpcoming": "Yaqinlashayotgan\nemlashlar",
+  "vaccUrgentBadge": "{count} TA\nSHOSHILINCH",
+  "@vaccUrgentBadge": {
+    "placeholders": { "count": {"type": "int"} }
+  },
+  "vaccAllRecords": "Barcha yozuvlar",
+  "vaccDueOverdue": "Muddati o'tgan",
+  "vaccDueToday": "Bugun",
+  "vaccDueTomorrow": "Ertaga",
+  "vaccDueInDays": "{days} kun qoldi",
+  "@vaccDueInDays": {
+    "placeholders": { "days": {"type": "int"} }
+  },
+  "vaccVaccineLabel": "VAKSINA",
+  "vaccDueDateLabel": "Muddat: {badge}",
+  "@vaccDueDateLabel": {
+    "placeholders": { "badge": {"type": "String"} }
+  },
+  "vaccStatusDone": "BAJARILGAN",
+  "vaccStatusPlanned": "REJADA",
+  "vaccSavedSnack": "Emlash yozuvi saqlandi",
 
   "weightTitle": "⚖️ Vazn",
   "weightEmpty": "Vazn o'lchovi yo'q",
@@ -371,6 +535,15 @@
   "weightAnimalLabel": "Hayvon",
   "weightAnimalRequired": "Hayvon tanlang",
   "weightLabel": "Vazn",
+  "weightWeeklyAvg": "HAFTALIK O'RTACHA",
+  "weightChartTitle": "Vazn grafigi",
+  "weightChartSubtitle": "Oxirgi 6 oy",
+  "weightRecentRecords": "So'nggi qaydlar",
+  "weightSavedSnack": "Vazn yozuvi saqlandi",
+  "weightMonthJan": "Yan", "weightMonthFeb": "Fev", "weightMonthMar": "Mar",
+  "weightMonthApr": "Apr", "weightMonthMay": "May", "weightMonthJun": "Iyun",
+  "weightMonthJul": "Iyul", "weightMonthAug": "Avg", "weightMonthSep": "Sen",
+  "weightMonthOct": "Okt", "weightMonthNov": "Noy", "weightMonthDec": "Dek",
 
   "reportTitle": "📊 Hisobot",
   "report7Days": "7 kun",
@@ -398,6 +571,16 @@
     "placeholders": { "days": {"type": "int"} }
   },
   "reportAvgMilk": "O'rtacha kunlik",
+  "reportAnalyticsLabel": "TAHLILIY MA'LUMOTLAR",
+  "reportTotalLivestockLabel": "JAMI CHORVA",
+  "reportNoData": "Ma'lumot yo'q",
+  "reportYoungAnimalsTitle": "Yosh hayvonlar (2 yoshgacha)",
+  "reportNoYoungAnimals": "Yosh hayvonlar yo'q",
+  "reportBySpeciesLabel": "Turlar bo'yicha",
+  "reportNoAnimals": "Hayvon yo'q",
+  "reportDayMon": "Du", "reportDayTue": "Se", "reportDayWed": "Ch",
+  "reportDayThu": "Pa", "reportDayFri": "Ju", "reportDaySat": "Sh",
+  "reportDaySun": "Ya",
   "reportHealthBySpecies": "Tur bo'yicha sog'lik holati",
   "reportLegendHealthy": "Sog'lom",
   "reportLegendTreatment": "Davolanmoqda",
@@ -408,6 +591,7 @@
   "menuLangUz": "O'zbekcha",
   "menuLangRu": "Русский",
   "menuEditProfile": "Ferma ma'lumotlari",
+  "menuPersonalInfo": "Shaxsiy ma'lumotlar",
   "menuLogout": "Chiqish",
   "menuLogoutConfirm": "Hisobdan chiqmoqchimisiz?",
   "menuChangeAccount": "Akkauntni almashtirish",
@@ -451,5 +635,24 @@
   "aiMicPermission": "Mikrofon ruxsati kerak",
   "aiCallVet": "Veterinar chaqirish",
   "aiOnline": "Online",
-  "aiExperience": "AI Veterinar · 15 yil tajriba"
+  "aiExperience": "AI Veterinar · 15 yil tajriba",
+  "aiWelcomeMessage": "Salom! Men Sonya — sizning AI veterinar yordamchingizman. Hayvon holati, kasallik belgilari, emlash yoki vazn haqida menga xabar bering. Ovoz yoki matn bilan murojaat qiling.",
+  "aiServerError": "⚠️ Server bilan bog'lanib bo'lmadi, qayta urinib ko'ring",
+  "aiPhotoSavedSnack": "✅ Saqlandi — Salomatlik bo'limida hayvonga biriktiring",
+  "aiSavedSnack": "Saqlandi",
+  "aiGenericError": "Xatolik yuz berdi. Qayta urinib ko'ring.",
+  "aiSttFailedSnack": "🎤 Ovoz tanilmadi, qayta urinib ko'ring",
+  "aiCameraOption": "📷 Kamera",
+  "aiCameraSubtitle": "Yangi rasm olish",
+  "aiGalleryOption": "🖼️ Galereya",
+  "aiGallerySubtitle": "Telefondan tanlash",
+  "aiDeleteConversation": "Suhbatni o'chirish",
+  "aiVetContactLabel": "Veterinar: {name}",
+  "@aiVetContactLabel": {
+    "placeholders": { "name": {"type": "String"} }
+  },
+  "aiCallVetNow": "Darhol veterinar chaqiring!",
+  "aiPhotoAddedHint": "Rasm qo'shildi. Matn kiriting va yuboring.",
+  "aiTranscribing": "🎤 Tahlil qilinmoqda...",
+  "aiSwipeToLock": "↑ yuqoriga → qulflash"
 }

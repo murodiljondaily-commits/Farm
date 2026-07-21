@@ -276,7 +276,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
 
   // ── 7. Photo diagnosis ──────────────────────────────────────────────────────
 
-  static Future<({VetResponse response, String? photoUrl})>
+  static Future<({VetResponse response, String? photoUrl, String? caseId})>
       diagnoseFromPhoto({
     required String imagePath,
     required String farmId,
@@ -322,12 +322,14 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
             confidence: 0,
           ),
           photoUrl: null,
+          caseId: null,
         );
       }
       final json = jsonDecode(body) as Map<String, dynamic>;
       return (
         response: VetResponse.fromJson(json),
         photoUrl: json['photo_url'] as String?,
+        caseId: json['case_id'] as String?,
       );
     } catch (e) {
       debugPrint('[VetAI] diagnoseFromPhoto: $e');
@@ -337,7 +339,31 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
           confidence: 0,
         ),
         photoUrl: null,
+        caseId: null,
       );
+    }
+  }
+
+  /// Assign an unassigned (photo) case to an animal via the backend, so it
+  /// shows under that animal on every device. Returns true on success.
+  static Future<bool> assignCaseToAnimal({
+    required String farmId,
+    required String caseId,
+    required String earTag,
+  }) async {
+    try {
+      final resp = await http
+          .patch(
+            Uri.parse('$_backendUrl/farm/$farmId/cases/$caseId/assign'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'ear_tag': earTag}),
+          )
+          .timeout(const Duration(seconds: 20));
+      debugPrint('[VetAI] assignCaseToAnimal: HTTP ${resp.statusCode} $caseId → $earTag');
+      return resp.statusCode == 200;
+    } catch (e) {
+      debugPrint('[VetAI] assignCaseToAnimal error: $e');
+      return false;
     }
   }
 
@@ -372,7 +398,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
             'body_part': intent.bodyPart,
             'first_aid_json': jsonEncode(response.firstAid),
             'photo_url': photoUrl,
-            'ai_model': 'claude-sonnet-4-6',
+            'ai_model': 'gemini-2.0-flash',
             'status': 'open',
             'vet_notified': 0,
             'created_at': now,
@@ -628,12 +654,37 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     }
   }
 
+  /// Mark a health case as 'davolanmoqda' (healing quick-action) via the
+  /// backend. Mirrors closeCaseViaApi — direct UI action, not the AI
+  /// confirm-card flow (the tap itself is the confirmation).
+  static Future<bool> updateCaseStatusViaApi({
+    required String farmId,
+    required String caseId,
+    required String status,
+  }) async {
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_backendUrl/farm/$farmId/cases/$caseId/status'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'status': status}),
+          )
+          .timeout(const Duration(seconds: 20));
+      debugPrint('[VetAI] updateCaseStatusViaApi: HTTP ${resp.statusCode} $caseId');
+      return resp.statusCode == 200;
+    } catch (e) {
+      debugPrint('[VetAI] updateCaseStatusViaApi error: $e');
+      return false;
+    }
+  }
+
   static Future<
       ({
         VetResponse response,
         String conversationId,
         bool vetMode,
         Map<String, dynamic> dataSaved,
+        List<Map<String, dynamic>> proposedActions,
       })> chatWithBackend({
     required String farmId,
     required String userId,
@@ -641,6 +692,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     required String message,
     String? conversationId,
     bool vetMode = false,
+    required String locale,
   }) async {
     try {
       final resp = await http
@@ -655,6 +707,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
               if (conversationId != null)
                 'conversation_id': conversationId,
               'vet_mode': vetMode,
+              'locale': locale,
             }),
           )
           .timeout(const Duration(seconds: 45));
@@ -673,39 +726,172 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
       final newVetMode = json['vet_mode'] as bool? ?? vetMode;
       final dataSaved =
           (json['data_saved'] as Map<String, dynamic>?) ?? {};
+      final proposedActions = ((json['proposed_actions'] as List<dynamic>?) ?? [])
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+      // Phase 4: confidence comes back as a structured field → render as a badge.
+      final confidence = (json['confidence'] as num?)?.toInt() ?? 0;
 
       return (
         response: VetResponse(
           assessment: text,
           firstAid: [],
-          confidence: 0,
+          confidence: confidence,
         ),
         conversationId: newConvId,
         vetMode: newVetMode,
         dataSaved: dataSaved,
+        proposedActions: proposedActions,
       );
     } on Exception {
       rethrow;
     }
   }
 
-  // ── 12b. Create Google Sheet for a farm ─────────────────────────────────────
-
-  static Future<String?> createSheet(String farmId, String ownerEmail) async {
+  /// Phase 1: execute a write action the user confirmed from a proposal card.
+  /// Returns the backend response (success + result + updated_animals) or null.
+  static Future<Map<String, dynamic>?> confirmAction({
+    required String farmId,
+    required String action,
+    required Map<String, dynamic> params,
+  }) async {
     try {
       final resp = await http
           .post(
-            Uri.parse('$_backendUrl/farm/$farmId/create-sheet'),
+            Uri.parse('$_backendUrl/confirm-action'),
             headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'owner_email': ownerEmail}),
+            body: jsonEncode({
+              'farm_id': farmId,
+              'action': action,
+              'params': params,
+            }),
           )
           .timeout(const Duration(seconds: 30));
-      debugPrint('[VetAI] createSheet status=${resp.statusCode}');
+      debugPrint('[VetAI] confirmAction $action → HTTP ${resp.statusCode}');
       if (resp.statusCode != 200) return null;
-      final json = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
-      return json['sheet_url'] as String?;
+      return jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
     } catch (e) {
-      debugPrint('[VetAI] createSheet error: $e');
+      debugPrint('[VetAI] confirmAction error: $e');
+      return null;
+    }
+  }
+
+  /// Phase 2: local record rows a confirmed write should insert into SQLite, so
+  /// the relevant screen updates without a manual refresh. Animal status/info
+  /// changes are NOT here — they come back in `updated_animals` and are upserted
+  /// directly. Pure (no I/O) so it can be unit-tested.
+  static List<({String kind, Map<String, dynamic> row})> localWriteRows(
+      String action, Map<String, dynamic> params, String farmId) {
+    final now = DateTime.now().toIso8601String();
+    final today = now.substring(0, 10);
+    Map<String, dynamic> vacc(dynamic tag) => {
+          'ear_tag': tag,
+          'farm_id': farmId,
+          'vaccine_name': params['vaccine_name'],
+          'date': params['date'] ?? today,
+          'next_due': params['next_due'],
+          'created_at': now,
+        };
+    switch (action) {
+      case 'log_vaccination':
+        return [(kind: 'vaccination', row: vacc(params['ear_tag']))];
+      case 'log_bulk_vaccination':
+        return [
+          for (final t in (params['ear_tags'] as List? ?? []))
+            (kind: 'vaccination', row: vacc(t))
+        ];
+      case 'log_weight':
+        return [
+          (kind: 'weight', row: {
+            'ear_tag': params['ear_tag'],
+            'farm_id': farmId,
+            'weight': (params['weight_kg'] as num?)?.toDouble(),
+            'measured_at': today,
+            'recorded_by': 'AI',
+            'created_at': now,
+          })
+        ];
+      case 'log_milk':
+        return [
+          (kind: 'milk', row: {
+            'farm_id': farmId,
+            'amount_liters': (params['liters'] as num?)?.toDouble(),
+            'timing': params['session'] ?? 'morning',
+            'recorded_by': 'AI',
+            'recorded_at': today,
+            'created_at': now,
+          })
+        ];
+      case 'add_health_case':
+        return [
+          (kind: 'case', row: {
+            'ear_tag': params['ear_tag'],
+            'farm_id': farmId,
+            'symptoms_farmer': (params['symptoms'] as List?)?.join(', '),
+            'diagnosis': params['ai_diagnosis'],
+            'ai_suggestion': params['ai_diagnosis'],
+            'ai_confidence': params['confidence'],
+            'severity': params['severity'] ?? 'routine',
+            'status': 'open',
+            'vet_notified': 0,
+            'created_at': now,
+          })
+        ];
+      default:
+        return [];
+    }
+  }
+
+  /// Phase 2: apply a confirmed action to local SQLite so screens reflect it
+  /// immediately (call notifyDirty afterwards to trigger the reload).
+  static Future<void> applyConfirmedAction({
+    required String farmId,
+    required String action,
+    required Map<String, dynamic> params,
+    required Map<String, dynamic> response,
+  }) async {
+    try {
+      // Status/info changes: upsert the fresh animal docs the backend returned.
+      for (final raw in (response['updated_animals'] as List<dynamic>? ?? [])) {
+        final m = Map<String, dynamic>.from(raw as Map);
+        m['farm_id'] = farmId;
+        await DbService.saveAnimal(Animal.fromMap(m));
+      }
+      // New record rows (vaccination/weight/milk/case).
+      for (final w in localWriteRows(action, params, farmId)) {
+        switch (w.kind) {
+          case 'vaccination':
+            await DbService.saveVaccination(w.row);
+            break;
+          case 'weight':
+            await DbService.saveWeight(w.row);
+            break;
+          case 'milk':
+            await DbService.saveMilk(w.row);
+            break;
+          case 'case':
+            await DbService.saveCase(w.row);
+            break;
+        }
+      }
+      debugPrint('[VetAI] applyConfirmedAction $action synced to SQLite');
+    } catch (e) {
+      debugPrint('[VetAI] applyConfirmedAction error: $e');
+    }
+  }
+
+  // ── 12b. Download the Excel farm report ─────────────────────────────────────
+
+  static Future<Uint8List?> downloadExcelReport(String farmId) async {
+    try {
+      final resp = await http
+          .get(Uri.parse('$_backendUrl/farm/$farmId/export-excel'))
+          .timeout(const Duration(seconds: 30));
+      debugPrint('[VetAI] downloadExcelReport status=${resp.statusCode}');
+      if (resp.statusCode != 200) return null;
+      return resp.bodyBytes;
+    } catch (e) {
+      debugPrint('[VetAI] downloadExcelReport error: $e');
       return null;
     }
   }
@@ -726,6 +912,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
               'location': farm.location,
               'owner_name': farm.ownerName,
               if (farm.ownerEmail != null) 'owner_email': farm.ownerEmail,
+              if (farm.ownerUid != null) 'owner_uid': farm.ownerUid,
               if (farm.phone != null) 'phone': farm.phone,
             }),
           )
@@ -735,6 +922,32 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     } catch (e) {
       debugPrint('[VetAI] saveFarmToBackend error: $e');
       return false;
+    }
+  }
+
+  /// Look up all farms owned by a Google account (by Firebase uid and/or email)
+  /// so the owner can restore their farm after signing in on a new device.
+  static Future<List<Map<String, dynamic>>> lookupFarmsByOwner({
+    String? uid,
+    String? email,
+  }) async {
+    try {
+      final params = <String, String>{};
+      if (uid != null && uid.isNotEmpty) params['uid'] = uid;
+      if (email != null && email.isNotEmpty) params['email'] = email;
+      if (params.isEmpty) return [];
+      final uri = Uri.parse('$_backendUrl/farms-by-owner')
+          .replace(queryParameters: params);
+      final resp = await http.get(uri).timeout(const Duration(seconds: 15));
+      debugPrint('[VetAI] lookupFarmsByOwner status=${resp.statusCode}');
+      if (resp.statusCode != 200) return [];
+      final json =
+          jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+      final list = (json['farms'] as List<dynamic>?) ?? [];
+      return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    } catch (e) {
+      debugPrint('[VetAI] lookupFarmsByOwner error: $e');
+      return [];
     }
   }
 

@@ -25,6 +25,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
   List<Vaccination> _vaccinations = [];
   List<WeightEntry> _weights = [];
   bool _loading = true;
+  int _seenAiWriteCount = 0;
   late TabController _tabs;
 
   @override
@@ -62,6 +63,13 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final provider = context.watch<FarmProvider>();
+    if (provider.aiWriteCount > _seenAiWriteCount) {
+      _seenAiWriteCount = provider.aiWriteCount;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _load();
+      });
+    }
     if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator(color: kPrimary)));
     }
@@ -183,42 +191,47 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                       fontSize: 17),
                 ),
                 const SizedBox(height: 12),
-                // Status pill
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: statusC.withValues(alpha: 0.18),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: statusC.withValues(alpha: 0.50), width: 1.5),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: statusC,
-                          boxShadow: [
-                            BoxShadow(
-                                color: statusC.withValues(alpha: 0.70),
-                                blurRadius: 5)
-                          ],
+                // Status pill (tap to change)
+                GestureDetector(
+                  onTap: () => _showStatusPicker(a, l10n),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: statusC.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: statusC.withValues(alpha: 0.50), width: 1.5),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 7,
+                          height: 7,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: statusC,
+                            boxShadow: [
+                              BoxShadow(
+                                  color: statusC.withValues(alpha: 0.70),
+                                  blurRadius: 5)
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 7),
-                      Text(
-                        statusLabel(a.status),
-                        style: TextStyle(
-                          color: statusC,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
+                        const SizedBox(width: 7),
+                        Text(
+                          statusLabel(l10n, a.status),
+                          style: TextStyle(
+                            color: statusC,
+                            fontWeight: FontWeight.w700,
+                            fontSize: 16,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Icon(Icons.expand_more_rounded, color: statusC, size: 18),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -258,10 +271,10 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                 value: 'vaccination', child: Text(l10n.animalMenuVacc)),
             PopupMenuItem(value: 'weight', child: Text(l10n.animalMenuWeight)),
             if (a.status != 'soglom')
-              const PopupMenuItem(
+              PopupMenuItem(
                   value: 'healthy',
-                  child: Text("✅ Sog'lom qilish",
-                      style: TextStyle(color: Color(0xFF4A8C4E)))),
+                  child: Text(l10n.animalMenuHealthy,
+                      style: const TextStyle(color: kStatusSoglom))),
             PopupMenuItem(value: 'sold', child: Text(l10n.animalMenuSold)),
             PopupMenuItem(value: 'dead', child: Text(l10n.animalMenuDead)),
             PopupMenuItem(
@@ -283,7 +296,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
           onPressed: () => context.push('/health?earTag=${a.earTag}').then((_) => _load()),
           icon: const Icon(Icons.medical_services_outlined),
           label: Text(l10n.animalFabHealth),
-          backgroundColor: const Color(0xFFE53935),
+          backgroundColor: kError,
         );
       case 2:
         return FloatingActionButton.extended(
@@ -291,7 +304,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
           onPressed: () => context.push('/vaccination?earTag=${a.earTag}').then((_) => _load()),
           icon: const Icon(Icons.vaccines_outlined),
           label: Text(l10n.animalFabVacc),
-          backgroundColor: const Color(0xFF2E7D32),
+          backgroundColor: kMint,
         );
       case 3:
         return FloatingActionButton.extended(
@@ -299,7 +312,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
           onPressed: () => context.push('/weight?earTag=${a.earTag}').then((_) => _load()),
           icon: const Icon(Icons.monitor_weight_outlined),
           label: Text(l10n.animalFabWeight),
-          backgroundColor: const Color(0xFF6A1B9A),
+          backgroundColor: kTeal,
         );
       default:
         return null;
@@ -338,9 +351,10 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
           key: formKey,
           child: TextFormField(
             controller: reasonCtrl,
-            decoration: const InputDecoration(labelText: 'O\'lim sababi'),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Sabab kiritish shart' : null,
+            decoration: InputDecoration(labelText: l10n.animalDeathReasonLabel),
+            validator: (v) => (v == null || v.trim().isEmpty)
+                ? l10n.animalDeathReasonRequired
+                : null,
             maxLines: 2,
           ),
         ),
@@ -374,7 +388,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
         title: Text(l10n.animalMenuSold),
         content: TextFormField(
           controller: reasonCtrl,
-          decoration: const InputDecoration(labelText: 'Izoh (ixtiyoriy)'),
+          decoration: InputDecoration(labelText: l10n.animalSoldReasonLabel),
           maxLines: 2,
         ),
         actions: [
@@ -418,6 +432,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
   }
 
   void _showEditSheet(Animal a) {
+    final l10n = AppLocalizations.of(context);
     final nameCtrl = TextEditingController(text: a.name ?? '');
     final breedCtrl = TextEditingController(text: a.breed ?? '');
     final colorCtrl = TextEditingController(text: a.color ?? '');
@@ -447,7 +462,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(children: [
-                    const Text('Tahrirlash', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kDark)),
+                    Text(l10n.animalEditSheetTitle, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: kDark)),
                     const Spacer(),
                     IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
                   ]),
@@ -457,20 +472,20 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                     child: Column(children: [
-                      TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Ism'), textCapitalization: TextCapitalization.words),
+                      TextField(controller: nameCtrl, decoration: InputDecoration(labelText: l10n.animalNameLabel), textCapitalization: TextCapitalization.words),
                       const SizedBox(height: 12),
-                      TextField(controller: breedCtrl, decoration: const InputDecoration(labelText: 'Zoti')),
+                      TextField(controller: breedCtrl, decoration: InputDecoration(labelText: l10n.animalBreedFieldLabel)),
                       const SizedBox(height: 12),
                       InputDecorator(
-                        decoration: const InputDecoration(labelText: 'Jinsi'),
+                        decoration: InputDecoration(labelText: l10n.addAnimalSex),
                         child: DropdownButton<String>(
                           value: sex,
                           isExpanded: true,
                           underline: const SizedBox(),
-                          items: const [
-                            DropdownMenuItem(value: 'erkak', child: Text('♂ Erkak')),
-                            DropdownMenuItem(value: 'urdona', child: Text('♀ Urdona')),
-                            DropdownMenuItem(value: 'nomalum', child: Text("Noma'lum")),
+                          items: [
+                            DropdownMenuItem(value: 'erkak', child: Text(l10n.addAnimalSexMale)),
+                            DropdownMenuItem(value: 'urdona', child: Text(l10n.addAnimalSexFemale)),
+                            DropdownMenuItem(value: 'nomalum', child: Text(l10n.addAnimalSexUnknown)),
                           ],
                           onChanged: (v) { if (v != null) setSheet(() => sex = v); },
                         ),
@@ -478,7 +493,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(dob != null ? dob!.toIso8601String().substring(0, 10) : "Tug'ilgan sana"),
+                        label: Text(dob != null ? dob!.toIso8601String().substring(0, 10) : l10n.addAnimalDob),
                         onPressed: () {
                           DateTime picked = dob ?? DateTime.now().subtract(const Duration(days: 365 * 2));
                           showModalBottomSheet<void>(
@@ -511,7 +526,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                                       setSheet(() => dob = picked);
                                       Navigator.of(sheetCtx).pop();
                                     },
-                                    child: const Text('Saqlash'),
+                                    child: Text(l10n.save),
                                   ),
                                 ),
                               ],
@@ -520,13 +535,13 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                         },
                       ),
                       const SizedBox(height: 12),
-                      TextField(controller: colorCtrl, decoration: const InputDecoration(labelText: 'Rangi')),
+                      TextField(controller: colorCtrl, decoration: InputDecoration(labelText: l10n.animalColorFieldLabel)),
                       const SizedBox(height: 12),
-                      TextField(controller: originCtrl, decoration: const InputDecoration(labelText: 'Kelib chiqishi')),
+                      TextField(controller: originCtrl, decoration: InputDecoration(labelText: l10n.animalInfoOrigin)),
                       const SizedBox(height: 12),
-                      TextField(controller: motherCtrl, decoration: const InputDecoration(labelText: 'Onaning quloq raqami', prefixIcon: Icon(Icons.female))),
+                      TextField(controller: motherCtrl, decoration: InputDecoration(labelText: l10n.animalMotherFieldLabel, prefixIcon: const Icon(Icons.female))),
                       const SizedBox(height: 12),
-                      TextField(controller: fatherCtrl, decoration: const InputDecoration(labelText: 'Otaning quloq raqami', prefixIcon: Icon(Icons.male))),
+                      TextField(controller: fatherCtrl, decoration: InputDecoration(labelText: l10n.animalFatherFieldLabel, prefixIcon: const Icon(Icons.male))),
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: () async {
@@ -552,7 +567,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                           if (ctx.mounted) Navigator.pop(ctx);
                           _load();
                         },
-                        child: const Text('Saqlash'),
+                        child: Text(l10n.save),
                       ),
                       const SizedBox(height: 8),
                     ]),
@@ -567,6 +582,7 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
   }
 
   void _showPregnancySheet(Animal a) {
+    final l10n = AppLocalizations.of(context);
     String status = a.pregnancyStatus == 'pregnant' || a.pregnancyStatus == 'none' || a.pregnancyStatus == 'unknown'
         ? a.pregnancyStatus
         : 'none';
@@ -587,18 +603,18 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
             children: [
               Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: kGreyLight, borderRadius: BorderRadius.circular(2)))),
               const SizedBox(height: 16),
-              const Text('Homiladorlik holati', style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: kDark)),
+              Text(l10n.animalPregnancyStatusTitle, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: kDark)),
               const SizedBox(height: 20),
               Row(children: [
-                _PregOption(label: "Yo'q", selected: status == 'none', onTap: () => setSheet(() => status = 'none')),
+                _PregOption(label: l10n.animalPregnancyNone, selected: status == 'none', onTap: () => setSheet(() => status = 'none')),
                 const SizedBox(width: 10),
-                _PregOption(label: 'Homilador', selected: status == 'pregnant', onTap: () => setSheet(() => status = 'pregnant')),
+                _PregOption(label: l10n.animalPregnancyPregnant, selected: status == 'pregnant', onTap: () => setSheet(() => status = 'pregnant')),
                 const SizedBox(width: 10),
-                _PregOption(label: 'Tekshirilmagan', selected: status == 'unknown', onTap: () => setSheet(() => status = 'unknown')),
+                _PregOption(label: l10n.animalPregnancyUnknown, selected: status == 'unknown', onTap: () => setSheet(() => status = 'unknown')),
               ]),
               if (status == 'pregnant') ...[
                 const SizedBox(height: 20),
-                const Text('Homiladorlik oyi:', style: TextStyle(color: kGrey, fontSize: 14)),
+                Text(l10n.animalPregnancyMonthLabel, style: const TextStyle(color: kGrey, fontSize: 14)),
                 const SizedBox(height: 10),
                 Row(
                   children: List.generate(9, (i) {
@@ -631,10 +647,73 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                   if (ctx.mounted) Navigator.pop(ctx);
                   _load();
                 },
-                child: const Text('Saqlash'),
+                child: Text(l10n.save),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  void _showStatusPicker(Animal a, AppLocalizations l10n) {
+    final options = [
+      ('soglom', l10n.statusSoglom, kStatusSoglom),
+      ('davolanmoqda', l10n.statusDavolanmoqda, kStatusDavolanmoqda),
+      ('kritik', l10n.statusKritik, kStatusKritik),
+      ('kuzatuvda', l10n.statusKuzatuvda, kStatusKuzatuvda),
+    ];
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: kGreyLight, borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(l10n.animalStatusPickerTitle,
+                    style: const TextStyle(
+                        fontSize: 19, fontWeight: FontWeight.w800, color: kDark)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...options.map((o) => ListTile(
+                  leading: Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(shape: BoxShape.circle, color: o.$3),
+                  ),
+                  title: Text(o.$2,
+                      style: TextStyle(
+                          fontWeight:
+                              a.status == o.$1 ? FontWeight.w800 : FontWeight.w500,
+                          color: kDark)),
+                  trailing: a.status == o.$1
+                      ? Icon(Icons.check_circle_rounded, color: o.$3)
+                      : null,
+                  onTap: () async {
+                    Navigator.pop(ctx);
+                    if (a.status != o.$1) {
+                      final farmId = context.read<FarmProvider>().farmId!;
+                      await DbService.updateAnimalStatus(farmId, a.earTag, o.$1);
+                      _load();
+                    }
+                  },
+                )),
+            const SizedBox(height: 12),
+          ],
         ),
       ),
     );
@@ -686,13 +765,12 @@ class _InfoTab extends StatelessWidget {
       int months = now.month - dob.month;
       if (now.day < dob.day) months--;
       if (months < 0) { years--; months += 12; }
-      final isRu = Localizations.localeOf(context).languageCode == 'ru';
       if (years > 0 && months > 0) {
-        ageStr = isRu ? '$years л. $months мес.' : '$years yil $months oy';
+        ageStr = l10n.animalAgeYearsMonths(years, months);
       } else if (years > 0) {
-        ageStr = isRu ? '$years лет' : '$years yil';
+        ageStr = l10n.animalAgeYears(years);
       } else {
-        ageStr = isRu ? '$months мес.' : '$months oy';
+        ageStr = l10n.animalAgeMonths(months);
       }
     }
 
@@ -709,10 +787,12 @@ class _InfoTab extends StatelessWidget {
 
     String pregnancyLabel() {
       if (a.pregnancyStatus == 'pregnant') {
-        return a.pregnancyMonth != null ? '${a.pregnancyMonth} oy homilador 🤰' : 'Homilador 🤰';
+        return a.pregnancyMonth != null
+            ? l10n.animalPregnantWithMonth(a.pregnancyMonth!)
+            : l10n.animalPregnantGeneric;
       }
-      if (a.pregnancyStatus == 'unknown') return 'Tekshirilmagan';
-      return "Yo'q";
+      if (a.pregnancyStatus == 'unknown') return l10n.animalPregnancyUnknown;
+      return l10n.animalPregnancyNone;
     }
 
     return ListView(
@@ -749,7 +829,7 @@ class _InfoTab extends StatelessWidget {
                         children: [
                           SizedBox(
                             width: 130,
-                            child: Text('Homiladorlik', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                            child: Text(l10n.animalInfoPregnancy, style: TextStyle(color: Colors.grey[600], fontSize: 13)),
                           ),
                           Expanded(
                             child: Text(pregnancyLabel(), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
@@ -785,7 +865,7 @@ class _CasesTab extends StatelessWidget {
       itemCount: cases.length,
       itemBuilder: (_, i) {
         final c = cases[i];
-        final color = c.isEmergency ? kError : c.severity == 'urgent' ? const Color(0xFFE65100) : kPrimary;
+        final color = c.isEmergency ? kError : c.severity == 'urgent' ? kStatusDavolanmoqda : kStatusKuzatuvda;
         return Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
@@ -867,7 +947,7 @@ class _VaccinationTab extends StatelessWidget {
         return Card(
           child: ListTile(
             leading: const CircleAvatar(
-              backgroundColor: Color(0xFFE8F5E9),
+              backgroundColor: kMintSoft,
               child: Text('💉', style: TextStyle(fontSize: 20)),
             ),
             title: Text(v.vaccineName,
@@ -918,8 +998,8 @@ class _WeightTab extends StatelessWidget {
         return Card(
           child: ListTile(
             leading: const CircleAvatar(
-              backgroundColor: Color(0xFFEDE7F6),
-              child: Icon(Icons.monitor_weight_outlined, color: Color(0xFF6A1B9A)),
+              backgroundColor: kMintSoft,
+              child: Icon(Icons.monitor_weight_outlined, color: kSecondary),
             ),
             title: Text('${w.weight} kg',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),

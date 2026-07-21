@@ -51,20 +51,21 @@ class _VaccinationScreenState extends State<VaccinationScreen> {
   }
 
   Future<void> _confirmAndDelete(Vaccination v) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("O'chirishni tasdiqlang"),
-        content: Text("${v.earTag} — ${v.vaccineName} (${v.date})\n\nBu yozuvni o'chirmoqchimisiz?"),
+        title: Text(l10n.deleteConfirmTitle),
+        content: Text("${v.earTag} — ${v.vaccineName} (${v.date})\n\n${l10n.deleteConfirmBody}"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Bekor'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("O'chirish"),
+            child: Text(l10n.deleteBtn),
           ),
         ],
       ),
@@ -74,53 +75,109 @@ class _VaccinationScreenState extends State<VaccinationScreen> {
     if (mounted) _load();
   }
 
+  Animal? _animalFor(String earTag) {
+    try {
+      return _animals.firstWhere((a) => a.earTag == earTag);
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: CapsuleBar(
-        title: l10n.vaccTitle,
+        title: 'AgriVet',
         onBack: () => context.canPop() ? context.pop() : context.go('/'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.checklist_rounded),
-            tooltip: l10n.bulkVaccTitle,
-            onPressed: () async {
-              await Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const BulkVaccinationScreen()));
-              _load();
-            },
-          ),
-        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : RefreshIndicator(
               onRefresh: _load,
               child: ListView(
-                padding: const EdgeInsets.only(bottom: 100),
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
                 children: [
+                  Text(l10n.vaccTitle,
+                      style: jakarta(size: 30, weight: FontWeight.w700)),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.vaccSubtitle,
+                    style: inter(size: 14.5, color: kGrey),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      await Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const BulkVaccinationScreen()));
+                      _load();
+                    },
+                    icon: const Icon(Icons.group_add_rounded, size: 20),
+                    label: Text(l10n.bulkVaccTitle),
+                    style: ElevatedButton.styleFrom(backgroundColor: kTeal),
+                  ),
+                  const SizedBox(height: 24),
                   if (_due.isNotEmpty) ...[
-                    _SectionHeader(
-                      label: l10n.vaccDueSoon(_due.length),
-                      color: Colors.orange,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(children: [
+                          const Icon(Icons.notifications_active_rounded,
+                              size: 20, color: kTeal),
+                          const SizedBox(width: 8),
+                          Text(l10n.vaccUpcoming,
+                              style: jakarta(
+                                  size: 17, weight: FontWeight.w700)),
+                        ]),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: kErrorContainer,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(l10n.vaccUrgentBadge(_due.length),
+                              textAlign: TextAlign.center,
+                              style: inter(
+                                  size: 10.5,
+                                  weight: FontWeight.w700,
+                                  color: kError,
+                                  height: 1.2)),
+                        ),
+                      ],
                     ),
-                    ..._due.map((v) => _VaccCard(
+                    const SizedBox(height: 14),
+                    ..._due.map((v) => _DueVaccCard(
                         v: v,
-                        highlight: true,
-                        onDelete: () => _confirmAndDelete(v))),
-                    const Divider(height: 24),
+                        animal: _animalFor(v.earTag),
+                        onConfirm: () => _confirmAndDelete(v))),
+                    const SizedBox(height: 8),
                   ],
-                  _SectionHeader(label: l10n.vaccAll(_all.length), color: kPrimary),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(l10n.vaccAllRecords,
+                          style: jakarta(size: 20, weight: FontWeight.w700)),
+                      Row(children: [
+                        Icon(Icons.filter_list_rounded,
+                            size: 20, color: kGrey),
+                        const SizedBox(width: 12),
+                        Icon(Icons.search_rounded, size: 20, color: kGrey),
+                      ]),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   if (_all.isEmpty)
                     Padding(
                       padding: const EdgeInsets.all(32),
-                      child: Center(child: Text(l10n.vaccEmpty)),
+                      child: Center(
+                          child:
+                              Text(l10n.vaccEmpty, style: inter(color: kGrey))),
                     )
                   else
                     ..._all.map((v) => _VaccCard(
                         v: v,
-                        highlight: false,
+                        animal: _animalFor(v.earTag),
                         onDelete: () => _confirmAndDelete(v))),
                 ],
               ),
@@ -259,11 +316,11 @@ class _VaccinationScreenState extends State<VaccinationScreen> {
                           _load();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text("Emlash yozuvi saqlandi",
-                                    style: TextStyle(color: Colors.white)),
-                                duration: Duration(seconds: 3),
-                                backgroundColor: Color(0xFF2E7D32),
+                              SnackBar(
+                                content: Text(sheetL10n.vaccSavedSnack,
+                                    style: const TextStyle(color: Colors.white)),
+                                duration: const Duration(seconds: 3),
+                                backgroundColor: const Color(0xFF2E7D32),
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
@@ -273,7 +330,7 @@ class _VaccinationScreenState extends State<VaccinationScreen> {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
-                                content: Text("Xatolik: $e",
+                                content: Text(sheetL10n.errorWithDetail('$e'),
                                     style: const TextStyle(color: Colors.white)),
                                 duration: const Duration(seconds: 4),
                                 backgroundColor: kError,
@@ -301,79 +358,209 @@ class _VaccinationScreenState extends State<VaccinationScreen> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _SectionHeader({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Text(label,
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14)),
-    );
+/// Relative-time badge text for a next_due date ("Ertaga", "2 kun qoldi"…).
+String _dueBadge(AppLocalizations l10n, String nextDue) {
+  try {
+    final due = DateTime.parse(nextDue);
+    final days = due.difference(DateTime.now()).inDays;
+    if (days < 0) return l10n.vaccDueOverdue;
+    if (days == 0) return l10n.vaccDueToday;
+    if (days == 1) return l10n.vaccDueTomorrow;
+    return l10n.vaccDueInDays(days);
+  } catch (_) {
+    return '';
   }
 }
 
-class _VaccCard extends StatelessWidget {
-  final Vaccination v;
-  final bool highlight;
-  final VoidCallback onDelete;
+int? _ageYearsFrom(String? dob) {
+  if (dob == null) return null;
+  try {
+    final d = DateTime.parse(dob);
+    return ((DateTime.now().difference(d).inDays) / 365).floor();
+  } catch (_) {
+    return null;
+  }
+}
 
-  const _VaccCard(
-      {required this.v, required this.highlight, required this.onDelete});
+/// Highlighted "due soon" card — red-outlined, with a Tasdiqlash button
+/// (per emlashlar Stitch design). Confirming here opens the same edit/delete
+/// dialog as a normal record (the underlying record is already saved locally;
+/// this simply lets the farmer acknowledge/administer it).
+class _DueVaccCard extends StatelessWidget {
+  final Vaccination v;
+  final Animal? animal;
+  final VoidCallback onConfirm;
+
+  const _DueVaccCard(
+      {required this.v, required this.animal, required this.onConfirm});
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: highlight
-            ? const BorderSide(color: Colors.orange, width: 1.5)
-            : BorderSide.none,
+    final age = _ageYearsFrom(animal?.dob);
+    final badge = v.nextDue != null ? _dueBadge(l10n, v.nextDue!) : '';
+    final urgent = v.isDueSoon;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+            color: urgent ? kError : kGreyLight, width: urgent ? 2 : 1),
+        boxShadow: elevatedShadow(glowColor: urgent ? kError : null),
       ),
-      child: ListTile(
-        leading: const CircleAvatar(
-          backgroundColor: Color(0xFFE8F5E9),
-          child: Text('💉', style: TextStyle(fontSize: 16)),
-        ),
-        title: Text('${v.earTag} — ${v.vaccineName}',
-            style: const TextStyle(fontWeight: FontWeight.w600)),
-        subtitle: Text(l10n.vaccDateLabel(v.date)),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (v.nextDue != null)
-              Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            CircleAvatar(
+              radius: 22,
+              backgroundColor: kMintSoft,
+              child: Text(
+                  animal != null ? speciesEmoji(animal!.species) : '🐾',
+                  style: const TextStyle(fontSize: 20)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(l10n.vaccNextLabel,
-                      style:
-                          const TextStyle(fontSize: 10, color: Colors.grey)),
-                  Text(v.nextDue!,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: v.isDueSoon
-                              ? Colors.orange[700]
-                              : Colors.grey[700],
-                          fontWeight: v.isDueSoon
-                              ? FontWeight.bold
-                              : FontWeight.normal)),
+                  Text(animal?.displayName ?? v.earTag,
+                      style: jakarta(size: 16, weight: FontWeight.w700)),
+                  Text(
+                    'ID: #${v.earTag}${age != null ? ' • $age yosh' : ''}',
+                    style: inter(size: 12.5, color: kGrey),
+                  ),
                 ],
               ),
-            IconButton(
-              icon: const Icon(Icons.delete_outline, size: 20),
-              color: Colors.red[300],
-              tooltip: "O'chirish",
-              onPressed: onDelete,
             ),
-          ],
-        ),
+            if (badge.isNotEmpty)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: urgent ? kError : kStatusKuzatuvda,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(badge.toUpperCase(),
+                    style: inter(
+                        size: 10.5,
+                        weight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
+          ]),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: insetWell(radius: 14, color: kBg),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(l10n.vaccVaccineLabel, style: labelBold()),
+                    const SizedBox(height: 2),
+                    Text(v.vaccineName,
+                        style: jakarta(size: 16, weight: FontWeight.w700)),
+                  ],
+                ),
+                if (badge.isNotEmpty)
+                  Text(l10n.vaccDueDateLabel(badge),
+                      style: inter(
+                          size: 12.5,
+                          weight: FontWeight.w700,
+                          color: kError)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(children: [
+                Icon(Icons.calendar_today_rounded, size: 14, color: kGrey),
+                const SizedBox(width: 6),
+                Text(v.date, style: inter(size: 13, color: kGrey)),
+              ]),
+              ElevatedButton(
+                onPressed: onConfirm,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kTeal,
+                  minimumSize: const Size(0, 40),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                ),
+                child: Text(l10n.confirm),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Simple record row for the "Barcha yozuvlar" list.
+class _VaccCard extends StatelessWidget {
+  final Vaccination v;
+  final Animal? animal;
+  final VoidCallback onDelete;
+
+  const _VaccCard(
+      {required this.v, required this.animal, required this.onDelete});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final done = v.nextDue == null || !v.isDueSoon;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: frostedCard(radius: 20, color: Colors.white),
+      child: Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: kMintSoft,
+            child: Text(animal != null ? speciesEmoji(animal!.species) : '🐾',
+                style: const TextStyle(fontSize: 17)),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('${animal?.displayName ?? v.earTag} (ID: #${v.earTag})',
+                    style: jakarta(size: 14.5, weight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text('${v.vaccineName} • ${v.date}',
+                    style: inter(size: 12.5, color: kGrey)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+            decoration: BoxDecoration(
+              color: done ? kMintSoft : const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(999),
+            ),
+            child: Text(
+              done ? l10n.vaccStatusDone : l10n.vaccStatusPlanned,
+              style: inter(
+                  size: 10.5,
+                  weight: FontWeight.w700,
+                  color: done ? kSecondary : kStatusDavolanmoqda),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: kError.withValues(alpha: 0.7),
+            tooltip: l10n.deleteBtn,
+            onPressed: onDelete,
+          ),
+        ],
       ),
     );
   }

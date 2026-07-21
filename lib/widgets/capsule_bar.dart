@@ -1,12 +1,18 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import '../theme.dart';
 
-/// A floating capsule-style AppBar with 16px horizontal margin and
-/// BorderRadius.circular(24). Use as the [appBar] of a [Scaffold].
+/// Floating glassmorphic capsule AppBar — 2030 design system.
+/// A translucent Deep-Teal pill (radius 32, backdrop blur) that never touches
+/// the screen edges; title in bright Aqua Mint, icons in white.
+/// Use as the [appBar] of a [Scaffold].
 class CapsuleBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final VoidCallback? onBack;
   final List<Widget> actions;
+
+  /// Kept for call-site compatibility — the 2030 bar is always dark glass.
   final bool dark;
 
   const CapsuleBar({
@@ -18,56 +24,59 @@ class CapsuleBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Size get preferredSize => const Size.fromHeight(60);
+  Size get preferredSize => const Size.fromHeight(64);
 
   @override
   Widget build(BuildContext context) {
-    final bg = dark ? const Color(0xFF1C1C1E) : kCardBg;
-    final fg = dark ? Colors.white : kDark;
     final topPad = MediaQuery.of(context).padding.top;
 
-    return Container(
-      color: kBg,
-      padding: EdgeInsets.fromLTRB(16, topPad + 8, 16, 4),
-      child: Container(
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, topPad + 8, 20, 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(32),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 56,
+            decoration: BoxDecoration(
+              color: kTeal.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(32),
+              boxShadow: heroShadow(),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            if (onBack != null)
-              IconButton(
-                icon: Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: fg,
-                  size: 20,
+            child: Row(
+              children: [
+                if (onBack != null)
+                  IconButton(
+                    icon: const Icon(
+                      Icons.arrow_back_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    onPressed: onBack,
+                  )
+                else
+                  const SizedBox(width: 20),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: jakarta(
+                      size: 18,
+                      weight: FontWeight.w700,
+                      color: kMintBright,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
-                onPressed: onBack,
-              )
-            else
-              const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: TextStyle(
-                  color: fg,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
+                ...actions.map(
+                  (a) => IconTheme(
+                    data: const IconThemeData(color: Colors.white, size: 22),
+                    child: a,
+                  ),
                 ),
-                overflow: TextOverflow.ellipsis,
-              ),
+                if (actions.isEmpty) const SizedBox(width: 20),
+              ],
             ),
-            ...actions,
-            if (actions.isEmpty) const SizedBox(width: 16),
-          ],
+          ),
         ),
       ),
     );

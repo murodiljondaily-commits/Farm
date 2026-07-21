@@ -6,7 +6,7 @@ import '../models/models.dart';
 class DbService {
   static Database? _db;
   static const _dbName = 'agrivet.db';
-  static const _version = 7;
+  static const _version = 8;
 
   static Future<Database> get db async {
     _db ??= await _open();
@@ -78,6 +78,11 @@ class DbService {
     }
     if (oldVersion < 7) {
       try { await db.execute('ALTER TABLE animals ADD COLUMN death_reason TEXT'); } catch(_) {}
+    }
+    if (oldVersion < 8) {
+      // Link a local case to its backend (Firestore) case so an unassigned
+      // photo case can be assigned to an animal via the backend PATCH.
+      try { await db.execute('ALTER TABLE cases ADD COLUMN backend_case_id TEXT'); } catch(_) {}
     }
   }
 
@@ -161,6 +166,7 @@ class DbService {
         vet_notified INTEGER DEFAULT 0,
         reported_by TEXT,
         reported_by_role TEXT,
+        backend_case_id TEXT,
         created_at TEXT
       )
     ''');
@@ -303,11 +309,18 @@ class DbService {
 
   static Future<Map<String, int>> getSpeciesCounts(String farmId) async {
     final database = await db;
+    // Exclude animals < 24 months old — they are counted in the
+    // "young animals" category instead, matching the species-tab filter
+    // in getAnimals(). Otherwise a calf would inflate the adult cow count.
+    final cutoff = DateTime(DateTime.now().year - 2, DateTime.now().month, DateTime.now().day)
+        .toIso8601String()
+        .substring(0, 10);
     final rows = await database.rawQuery(
         '''SELECT species, COUNT(*) as cnt FROM animals
            WHERE farm_id = ? AND status NOT IN ('sotildi', 'oldi')
+             AND (dob IS NULL OR dob < ?)
            GROUP BY species''',
-        [farmId]);
+        [farmId, cutoff]);
     return {for (var r in rows) r['species'] as String: r['cnt'] as int};
   }
 
@@ -390,6 +403,7 @@ class DbService {
         'mother_ear_tag': a.motherEarTag,
         'father_ear_tag': a.fatherEarTag,
         'animal_type': a.animalType,
+        'photo_file_id': a.photoFileId,
         'pregnancy_status': a.pregnancyStatus,
         'pregnancy_month': a.pregnancyMonth,
         'expected_birth_date': a.expectedBirthDate,
@@ -461,10 +475,54 @@ class DbService {
     return database.insert('cases', data);
   }
 
+  /// Upsert a case from a live Firestore snapshot (see FirestoreLiveService).
+  /// The local `case_id` is an autoincrement INTEGER unrelated to Firestore's
+  /// string case id — `backend_case_id` is the only shared key, so this must
+  /// look up by that column first rather than blindly inserting (which would
+  /// create a duplicate local row on every snapshot update instead of
+  /// updating the existing one).
+  static Future<void> upsertCaseFromFirestore(
+      String farmId, Map<String, dynamic> firestoreData) async {
+    final database = await db;
+    final backendCaseId = firestoreData['case_id']?.toString();
+    if (backendCaseId == null || backendCaseId.isEmpty) return;
+
+    final row = {
+      'ear_tag': firestoreData['ear_tag'] ?? '',
+      'farm_id': farmId,
+      'symptoms_farmer': (firestoreData['symptoms'] as List?)?.join(', ') ??
+          firestoreData['visual_findings'],
+      'diagnosis': firestoreData['ai_diagnosis'],
+      'ai_suggestion': firestoreData['ai_diagnosis'],
+      'ai_confidence': firestoreData['ai_confidence'],
+      'severity': firestoreData['severity'] ?? 'routine',
+      'status': firestoreData['status'] ?? 'open',
+      'vet_notified': (firestoreData['confirmed_by_vet'] == true) ? 1 : 0,
+      'backend_case_id': backendCaseId,
+      'created_at': firestoreData['opened_at'] ?? DateTime.now().toIso8601String(),
+    };
+
+    final existing = await database.query('cases',
+        where: 'backend_case_id = ?', whereArgs: [backendCaseId], limit: 1);
+    if (existing.isNotEmpty) {
+      await database.update('cases', row,
+          where: 'backend_case_id = ?', whereArgs: [backendCaseId]);
+    } else {
+      await database.insert('cases', row);
+    }
+  }
+
   static Future<void> updateCaseStatus(String caseId, String status) async {
     final database = await db;
     await database.update('cases', {'status': status},
         where: 'case_id = ?', whereArgs: [caseId]);
+  }
+
+  /// Attach an unassigned local case to an animal (used after the backend PATCH).
+  static Future<void> assignCaseLocal(String localCaseId, String earTag) async {
+    final database = await db;
+    await database.update('cases', {'ear_tag': earTag},
+        where: 'case_id = ?', whereArgs: [localCaseId]);
   }
 
   static Future<void> closeCaseWithOutcome(
@@ -867,8 +925,10 @@ class DbService {
     final kritikRow = await database.rawQuery(
         'SELECT COUNT(*) c FROM animals WHERE farm_id=? AND status=\'kritik\'',
         [farmId]);
+    // != 'closed' (not == 'open') so a case marked 'davolanmoqda' (healing)
+    // still counts as an open/active case for this stat.
     final openCasesRow = await database.rawQuery(
-        'SELECT COUNT(*) c FROM cases WHERE farm_id=? AND status=\'open\'',
+        'SELECT COUNT(*) c FROM cases WHERE farm_id=? AND status!=\'closed\'',
         [farmId]);
     final closedCasesRow = await database.rawQuery(
         'SELECT COUNT(*) c FROM cases WHERE farm_id=? AND status=\'closed\' AND created_at>=?',

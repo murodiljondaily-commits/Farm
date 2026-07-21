@@ -84,10 +84,7 @@ class _StatCardState extends State<StatCard>
               const SizedBox(height: 16),
               Text(
                 widget.value,
-                style: const TextStyle(
-                  fontSize: 36,
-                  fontWeight: FontWeight.w800,
-                  color: kDark,
+                style: statNumber(size: 34).copyWith(
                   letterSpacing: -1.0,
                   height: 1,
                 ),
@@ -95,11 +92,7 @@ class _StatCardState extends State<StatCard>
               const SizedBox(height: 6),
               Text(
                 widget.label,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: kGrey,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: inter(size: 15, color: kGrey, weight: FontWeight.w500),
               ),
             ],
           ),

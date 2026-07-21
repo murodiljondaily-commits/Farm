@@ -45,6 +45,17 @@ class AppLocalizationsRu extends AppLocalizations {
   String get closeBtn => 'Закрыть';
 
   @override
+  String get deleteConfirmTitle => 'Подтвердите удаление';
+
+  @override
+  String get deleteConfirmBody => 'Вы хотите удалить эту запись?';
+
+  @override
+  String errorWithDetail(String error) {
+    return 'Ошибка: $error';
+  }
+
+  @override
   String get openStatus => 'Открыт';
 
   @override
@@ -58,6 +69,29 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get fieldRequired => 'Заполните поле';
+
+  @override
+  String get proposedActionDone => 'Выполнено';
+
+  @override
+  String get proposedActionCancelled => 'Отменено';
+
+  @override
+  String get proposedActionDefaultSummary => 'Подтвердите действие';
+
+  @override
+  String get proposedActionNeedsConfirm => 'Требуется подтверждение';
+
+  @override
+  String proposedActionAffectedCount(int count) {
+    return '$count животн.';
+  }
+
+  @override
+  String get proposedActionCancelBtn => 'Отменить';
+
+  @override
+  String get proposedActionError => 'Ошибка — попробуйте снова';
 
   @override
   String get roleOwner => 'Владелец фермы';
@@ -114,6 +148,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get speciesAll => 'Все';
+
+  @override
+  String get speciesYoung => 'Молодняк';
 
   @override
   String get statusSoglom => 'Здоров';
@@ -181,6 +218,12 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get phoneInvalidNumber => 'Введите корректный номер телефона';
+
+  @override
+  String get phoneFieldEmpty => 'Введите номер телефона';
+
+  @override
+  String get phoneFieldWrongLength => 'Введите ровно 9 цифр';
 
   @override
   String get phoneTooManyRequests => 'Слишком много попыток. Попробуйте позже.';
@@ -332,7 +375,15 @@ class AppLocalizationsRu extends AppLocalizations {
   String get joinSubmit => 'Отправить запрос';
 
   @override
+  String get setupOfflineWarning =>
+      'Ферма создана. Для подключения с других устройств нужен интернет.';
+
+  @override
   String get pinSubtitle => 'Введите PIN-код';
+
+  @override
+  String get farmPinGateSubtitle =>
+      'Введите PIN для доступа к настройкам фермы';
 
   @override
   String pinGreeting(String name) {
@@ -434,6 +485,33 @@ class AppLocalizationsRu extends AppLocalizations {
   String get homeTodayMilk => 'Всё молоко';
 
   @override
+  String get homeTodayPrefix => 'Сегодня,';
+
+  @override
+  String get homeFarmStatusTitle => 'Статус фермы';
+
+  @override
+  String get homeTotalAnimalsLabel => 'ВСЕГО ЖИВОТНЫХ';
+
+  @override
+  String get homeAllTypesLabel => 'Все виды';
+
+  @override
+  String get homeHealthyStatLabel => 'ЗДОРОВЫЕ';
+
+  @override
+  String get homeTreatingLabel => 'НА ЛЕЧЕНИИ';
+
+  @override
+  String get homeWarningLabel => 'ПРЕДУПРЕЖДЕНИЕ';
+
+  @override
+  String get homeAttentionNeeded => 'Требует внимания!';
+
+  @override
+  String get homeTodayMilkLabel => 'СЕГОДНЯШНЕЕ МОЛОКО';
+
+  @override
   String get homeAnimalsSection => 'Животные';
 
   @override
@@ -450,6 +528,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get homeNavFarm => 'Ферма';
+
+  @override
+  String get homeNavArchive => 'Архив';
 
   @override
   String get homeActionHealth => 'Случай болезни';
@@ -493,12 +574,6 @@ class AppLocalizationsRu extends AppLocalizations {
   String get farmNoData => 'Данные фермы не найдены';
 
   @override
-  String get farmSheets => 'Google Таблицы';
-
-  @override
-  String get farmSheetsSubtitle => 'Просмотр данных фермы';
-
-  @override
   String get farmChangePin => 'Изменить PIN-код';
 
   @override
@@ -526,10 +601,52 @@ class AppLocalizationsRu extends AppLocalizations {
   String get farmCodeCopied => 'Код фермы скопирован';
 
   @override
+  String get farmEditTooltip => 'Редактировать';
+
+  @override
+  String get farmSectionManagement => 'УПРАВЛЕНИЕ';
+
+  @override
+  String get farmSectionSecurityLang => 'БЕЗОПАСНОСТЬ И ЯЗЫК';
+
+  @override
+  String get farmSectionExport => 'ЭКСПОРТ И СЕРВИСЫ';
+
+  @override
+  String get farmEditSubtitle => 'Название, адрес и тип';
+
+  @override
+  String get farmExcelExportTitle => 'Excel-отчёт';
+
+  @override
+  String get farmExcelExportSubtitle => 'Скачать отчёт по ферме';
+
+  @override
+  String get farmVersionFooter => 'AgriVet v2.4.0 · Build 2030.A1';
+
+  @override
+  String get farmEditSheetTitle => 'Данные фермы';
+
+  @override
+  String get farmNameLabel => 'Название фермы';
+
+  @override
+  String get farmLocationLabel => 'Местоположение';
+
+  @override
+  String get farmExcelGenerating => 'Формируется отчёт...';
+
+  @override
+  String get farmExcelError => 'Ошибка при скачивании отчёта';
+
+  @override
   String get farmLanguage => 'Язык';
 
   @override
   String get farmLanguageUz => '🇺🇿 O\'zbek';
+
+  @override
+  String get farmLanguageUzCyrl => '🇺🇿 Ўзбек';
 
   @override
   String get farmLanguageRu => '🇷🇺 Русский';
@@ -587,6 +704,37 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get animalsAddNew => 'Добавьте новое животное';
+
+  @override
+  String get archiveTitle => 'Архив';
+
+  @override
+  String get archiveSubtitle => 'История проданных и погибших животных';
+
+  @override
+  String get archiveFilterAll => 'Все';
+
+  @override
+  String get archiveFilterSold => 'Проданные';
+
+  @override
+  String get archiveFilterDied => 'Погибшие';
+
+  @override
+  String get archiveEmptyTitle => 'Архив пуст';
+
+  @override
+  String get archiveEmptyBody =>
+      'Проданные или погибшие животные появятся здесь';
+
+  @override
+  String get archiveDateLabel => 'Дата:';
+
+  @override
+  String get archiveReasonLabel => 'Причина:';
+
+  @override
+  String get archiveDetailsBtn => 'Подробности';
 
   @override
   String get addAnimalTitle => 'Добавить животное';
@@ -685,12 +833,102 @@ class AppLocalizationsRu extends AppLocalizations {
   String get healthClose => 'Закрыть';
 
   @override
+  String get healthMarkHealing => 'Отметить как «на лечении»';
+
+  @override
+  String get healthViewDetails => 'Подробнее';
+
+  @override
   String get healthAiLabel => '🤖 Диагноз ИИ:';
 
   @override
   String healthConfidence(int pct) {
     return 'Уверенность: $pct%';
   }
+
+  @override
+  String healthAssignedSnack(String earTag) {
+    return '✅ Привязано к $earTag';
+  }
+
+  @override
+  String get healthMarkedHealingSnack => 'Отмечено как «на лечении»';
+
+  @override
+  String get healthStatOpenLabel => 'ОТКРЫТЫЕ СЛУЧАИ';
+
+  @override
+  String get healthStatActive => 'активных';
+
+  @override
+  String get healthStatCriticalLabel => 'КРИТИЧЕСКИЕ';
+
+  @override
+  String get healthStatUrgent => 'срочно';
+
+  @override
+  String get healthJournalTitle => 'Журнал здоровья';
+
+  @override
+  String get healthFilterAll => 'Все';
+
+  @override
+  String get healthFilterCritical => 'Критические';
+
+  @override
+  String get healthCloseSheetTitle => 'Закрыть случай болезни';
+
+  @override
+  String get healthResultLabel => 'Результат';
+
+  @override
+  String get healthOutcomeHealed => 'Выздоровел';
+
+  @override
+  String get healthOutcomeWorsened => 'Ухудшилось';
+
+  @override
+  String get healthOutcomeDied => 'Погиб';
+
+  @override
+  String get healthRecoveryDaysLabel => 'Дней на выздоровление (необязательно)';
+
+  @override
+  String get healthVetConfirmedLabel => 'Подтверждено ветеринаром';
+
+  @override
+  String get healthCaseClosedSnack => 'Случай закрыт';
+
+  @override
+  String get healthSaveAndClose => 'Сохранить и закрыть';
+
+  @override
+  String get healthCaseDeleteBody => 'Вы хотите удалить эту запись о болезни?';
+
+  @override
+  String get healthCaseSavedSnack => 'Запись о болезни сохранена';
+
+  @override
+  String get healthUnassignedLabel => 'Животное не привязано';
+
+  @override
+  String get healthSymptomsSectionLabel => 'СИМПТОМЫ';
+
+  @override
+  String get healthAiDiagnosisLabel => 'ДИАГНОЗ ИИ SONYA';
+
+  @override
+  String healthConfidencePercent(int pct) {
+    return '$pct% УВЕРЕННОСТЬ';
+  }
+
+  @override
+  String healthClosedSummary(String date) {
+    return 'Этот случай успешно завершён. Последний осмотр: $date.';
+  }
+
+  @override
+  String get healthAssignHint => 'Привязать к животному';
 
   @override
   String get animalNotFoundTitle => 'Животное не найдено';
@@ -817,6 +1055,77 @@ class AppLocalizationsRu extends AppLocalizations {
   }
 
   @override
+  String get animalMenuHealthy => '✅ Сделать здоровым';
+
+  @override
+  String get animalDeathReasonLabel => 'Причина смерти';
+
+  @override
+  String get animalDeathReasonRequired => 'Укажите причину';
+
+  @override
+  String get animalSoldReasonLabel => 'Комментарий (необязательно)';
+
+  @override
+  String get animalEditSheetTitle => 'Редактировать';
+
+  @override
+  String get animalNameLabel => 'Имя';
+
+  @override
+  String get animalBreedFieldLabel => 'Порода';
+
+  @override
+  String get animalColorFieldLabel => 'Цвет';
+
+  @override
+  String get animalMotherFieldLabel => 'Ушная бирка матери';
+
+  @override
+  String get animalFatherFieldLabel => 'Ушная бирка отца';
+
+  @override
+  String get animalPregnancyStatusTitle => 'Статус беременности';
+
+  @override
+  String get animalPregnancyNone => 'Нет';
+
+  @override
+  String get animalPregnancyPregnant => 'Беременна';
+
+  @override
+  String get animalPregnancyUnknown => 'Не проверено';
+
+  @override
+  String get animalPregnancyMonthLabel => 'Месяц беременности:';
+
+  @override
+  String animalPregnantWithMonth(int month) {
+    return '$month мес. беременности 🤰';
+  }
+
+  @override
+  String get animalPregnantGeneric => 'Беременна 🤰';
+
+  @override
+  String animalAgeYearsMonths(int years, int months) {
+    return '$years л. $months мес.';
+  }
+
+  @override
+  String animalAgeYears(int years) {
+    return '$years лет';
+  }
+
+  @override
+  String animalAgeMonths(int months) {
+    return '$months мес.';
+  }
+
+  @override
+  String get animalStatusPickerTitle => 'Изменить статус';
+
+  @override
   String get milkTitle => '🥛 Молоко';
 
   @override
@@ -842,6 +1151,46 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get milkEveningTitle => '🌙 Вечерний надой';
+
+  @override
+  String get milkHeroLabel => 'УЧЁТ МОЛОКА';
+
+  @override
+  String get milkHeroTitle => 'Надой за сегодня';
+
+  @override
+  String get milkLitersUnit => 'Литр';
+
+  @override
+  String milkYesterday(String liters) {
+    return 'Вчера: $liters л';
+  }
+
+  @override
+  String get milkDuplicateWarning =>
+      'Сегодня уже добавлено 2 записи о молоке. Добавить ещё?';
+
+  @override
+  String get milkMorningEntry => 'Утренний надой';
+
+  @override
+  String get milkEveningEntry => 'Вечерний надой';
+
+  @override
+  String get milkAnalysisLabel => 'АНАЛИЗ';
+
+  @override
+  String get milkTrendRising =>
+      'За последние 3 дня надой стабильно растёт. Рекомендуется сохранить текущий рацион кормления.';
+
+  @override
+  String get milkTrendFalling =>
+      'За последние 3 дня надой снижается. Проверьте рацион и водоснабжение.';
+
+  @override
+  String milkTrendStable(String avg) {
+    return 'Средний надой за последние 3 дня: $avg л. Наблюдается стабильное состояние.';
+  }
 
   @override
   String get vaccTitle => '💉 Вакцинация';
@@ -889,6 +1238,51 @@ class AppLocalizationsRu extends AppLocalizations {
   String get vaccNextLabel => 'Следующая:';
 
   @override
+  String get vaccSubtitle => 'Контроль и управление здоровьем скота';
+
+  @override
+  String get vaccUpcoming => 'Предстоящие\nвакцинации';
+
+  @override
+  String vaccUrgentBadge(int count) {
+    return '$count СРОЧНО';
+  }
+
+  @override
+  String get vaccAllRecords => 'Все записи';
+
+  @override
+  String get vaccDueOverdue => 'Просрочено';
+
+  @override
+  String get vaccDueToday => 'Сегодня';
+
+  @override
+  String get vaccDueTomorrow => 'Завтра';
+
+  @override
+  String vaccDueInDays(int days) {
+    return 'Осталось $days дн.';
+  }
+
+  @override
+  String get vaccVaccineLabel => 'ВАКЦИНА';
+
+  @override
+  String vaccDueDateLabel(String badge) {
+    return 'Срок: $badge';
+  }
+
+  @override
+  String get vaccStatusDone => 'ВЫПОЛНЕНО';
+
+  @override
+  String get vaccStatusPlanned => 'ЗАПЛАНИРОВАНО';
+
+  @override
+  String get vaccSavedSnack => 'Запись о вакцинации сохранена';
+
+  @override
   String get weightTitle => '⚖️ Вес';
 
   @override
@@ -911,6 +1305,57 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get weightLabel => 'Вес';
+
+  @override
+  String get weightWeeklyAvg => 'СРЕДНЕЕ ЗА НЕДЕЛЮ';
+
+  @override
+  String get weightChartTitle => 'График веса';
+
+  @override
+  String get weightChartSubtitle => 'Последние 6 месяцев';
+
+  @override
+  String get weightRecentRecords => 'Последние записи';
+
+  @override
+  String get weightSavedSnack => 'Запись о весе сохранена';
+
+  @override
+  String get weightMonthJan => 'Янв';
+
+  @override
+  String get weightMonthFeb => 'Фев';
+
+  @override
+  String get weightMonthMar => 'Мар';
+
+  @override
+  String get weightMonthApr => 'Апр';
+
+  @override
+  String get weightMonthMay => 'Май';
+
+  @override
+  String get weightMonthJun => 'Июн';
+
+  @override
+  String get weightMonthJul => 'Июл';
+
+  @override
+  String get weightMonthAug => 'Авг';
+
+  @override
+  String get weightMonthSep => 'Сен';
+
+  @override
+  String get weightMonthOct => 'Окт';
+
+  @override
+  String get weightMonthNov => 'Ноя';
+
+  @override
+  String get weightMonthDec => 'Дек';
 
   @override
   String get reportTitle => '📊 Отчёт';
@@ -977,6 +1422,48 @@ class AppLocalizationsRu extends AppLocalizations {
   String get reportAvgMilk => 'Среднесуточный';
 
   @override
+  String get reportAnalyticsLabel => 'АНАЛИТИЧЕСКИЕ ДАННЫЕ';
+
+  @override
+  String get reportTotalLivestockLabel => 'ВСЕГО СКОТА';
+
+  @override
+  String get reportNoData => 'Нет данных';
+
+  @override
+  String get reportYoungAnimalsTitle => 'Молодняк (до 2 лет)';
+
+  @override
+  String get reportNoYoungAnimals => 'Молодняка нет';
+
+  @override
+  String get reportBySpeciesLabel => 'По видам';
+
+  @override
+  String get reportNoAnimals => 'Животных нет';
+
+  @override
+  String get reportDayMon => 'Пн';
+
+  @override
+  String get reportDayTue => 'Вт';
+
+  @override
+  String get reportDayWed => 'Ср';
+
+  @override
+  String get reportDayThu => 'Чт';
+
+  @override
+  String get reportDayFri => 'Пт';
+
+  @override
+  String get reportDaySat => 'Сб';
+
+  @override
+  String get reportDaySun => 'Вс';
+
+  @override
   String get reportHealthBySpecies => 'Здоровье по видам';
 
   @override
@@ -1002,6 +1489,9 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get menuEditProfile => 'Данные фермы';
+
+  @override
+  String get menuPersonalInfo => 'Личные данные';
 
   @override
   String get menuLogout => 'Выйти';
@@ -1105,4 +1595,57 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get aiExperience => 'ИИ Ветеринар · 15 лет опыта';
+
+  @override
+  String get aiWelcomeMessage =>
+      'Ассалому алайкум! Я Соня — ваш ИИ-ветеринар. Расскажите о состоянии животного, симптомах, вакцинации или весе. Пишите текст или говорите голосом.';
+
+  @override
+  String get aiServerError =>
+      '⚠️ Не удалось подключиться к серверу, попробуйте снова';
+
+  @override
+  String get aiPhotoSavedSnack =>
+      '✅ Сохранено — прикрепите к животному в разделе «Здоровье»';
+
+  @override
+  String get aiSavedSnack => 'Сохранено';
+
+  @override
+  String get aiGenericError => 'Произошла ошибка. Попробуйте снова.';
+
+  @override
+  String get aiSttFailedSnack => '🎤 Голос не распознан, попробуйте снова';
+
+  @override
+  String get aiCameraOption => '📷 Камера';
+
+  @override
+  String get aiCameraSubtitle => 'Сделать новое фото';
+
+  @override
+  String get aiGalleryOption => '🖼️ Галерея';
+
+  @override
+  String get aiGallerySubtitle => 'Выбрать с телефона';
+
+  @override
+  String get aiDeleteConversation => 'Удалить беседу';
+
+  @override
+  String aiVetContactLabel(String name) {
+    return 'Ветеринар: $name';
+  }
+
+  @override
+  String get aiCallVetNow => 'Немедленно вызовите ветеринара!';
+
+  @override
+  String get aiPhotoAddedHint => 'Фото добавлено. Введите текст и отправьте.';
+
+  @override
+  String get aiTranscribing => '🎤 Анализ...';
+
+  @override
+  String get aiSwipeToLock => '↑ вверх → блокировка';
 }

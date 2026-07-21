@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
@@ -11,11 +12,12 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
+import '../l10n/app_localizations.dart';
 import '../providers/farm_provider.dart';
-import '../providers/locale_provider.dart';
 import '../services/db_service.dart';
 import '../services/vet_ai_service.dart';
 import '../theme.dart';
+import '../widgets/proposed_action_card.dart';
 
 // ── Chat message model ────────────────────────────────────────────────────────
 
@@ -28,6 +30,8 @@ class ChatMessage {
   final bool isLoading;
   final String? photoPath;
   final Map<String, String>? emergencyContact;
+  // Phase 1: write actions Sonya proposes; rendered as a Confirm/Cancel card.
+  final List<Map<String, dynamic>> proposedActions;
 
   const ChatMessage({
     required this.id,
@@ -38,6 +42,7 @@ class ChatMessage {
     this.isLoading = false,
     this.photoPath,
     this.emergencyContact,
+    this.proposedActions = const [],
   });
 
   ChatMessage copyWith({
@@ -45,6 +50,7 @@ class ChatMessage {
     VetIntent? intent,
     bool? isLoading,
     Map<String, String>? emergencyContact,
+    List<Map<String, dynamic>>? proposedActions,
   }) =>
       ChatMessage(
         id: id,
@@ -55,6 +61,7 @@ class ChatMessage {
         isLoading: isLoading ?? this.isLoading,
         photoPath: photoPath,
         emergencyContact: emergencyContact ?? this.emergencyContact,
+        proposedActions: proposedActions ?? this.proposedActions,
       );
 }
 
@@ -216,20 +223,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
   // ── Welcome ───────────────────────────────────────────────────────────────
 
   void _addWelcome() {
-    final isRu =
-        context.read<LocaleProvider>().locale.languageCode == 'ru';
+    final l10n = AppLocalizations.of(context);
     setState(() {
       _messages.add(ChatMessage(
         id: const Uuid().v4(),
         isUser: false,
         vetResponse: VetResponse(
-          assessment: isRu
-              ? 'Ассалому алайкум! Я Соня — ваш ИИ-ветеринар. '
-                  'Расскажите о состоянии животного, симптомах, вакцинации '
-                  'или весе. Пишите текст или говорите голосом.'
-              : 'Salom! Men Sonya — sizning AI veterinar yordamchingizman. '
-                  'Hayvon holati, kasallik belgilari, emlash yoki vazn haqida '
-                  'menga xabar bering. Ovoz yoki matn bilan murojaat qiling.',
+          assessment: l10n.aiWelcomeMessage,
           firstAid: [],
           confidence: 100,
         ),
@@ -267,8 +267,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
 
     final farmId = context.read<FarmProvider>().farmId;
     if (farmId == null) return;
-    final isRu =
-        context.read<LocaleProvider>().locale.languageCode == 'ru';
+    final l10n = AppLocalizations.of(context);
+    final loc = Localizations.localeOf(context);
+    final localeStr =
+        loc.scriptCode != null ? '${loc.languageCode}_${loc.scriptCode}' : loc.languageCode;
 
     final userMsgId = const Uuid().v4();
     final aiMsgId = const Uuid().v4();
@@ -294,6 +296,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
       VetIntent? intent;
       Map<String, String>? emergencyContact;
       String? uploadedPhotoUrl;
+      List<Map<String, dynamic>> proposedActions = const [];
 
       if (imagePath != null) {
         intent = const VetIntent(
@@ -314,22 +317,38 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
         aiResp = result.response;
         uploadedPhotoUrl = result.photoUrl;
 
-        // Keep local SQLite save for photo diagnoses
-        final savedType = await VetAiService.autoSave(
-          farmId: farmId,
-          intent: intent,
-          response: aiResp,
-          photoUrl: uploadedPhotoUrl,
-        );
-        if (savedType != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Saqlandi'),
-              duration: Duration(seconds: 2),
-              backgroundColor: Color(0xFF22DD66),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
+        // Save the diagnosis as a local case. The photo was taken with no ear
+        // tag, so this is UNASSIGNED (ear_tag='') — the farmer attaches it to an
+        // animal later from the Health screen. backend_case_id links it to the
+        // Firestore case created by /diagnose-photo so the assign PATCH can
+        // target it.
+        if (aiResp.confidence >= 0 && aiResp.assessment.isNotEmpty) {
+          await DbService.saveCase({
+            'ear_tag': '',
+            'farm_id': farmId,
+            'symptoms_farmer': aiResp.visualFindings,
+            'diagnosis': aiResp.assessment,
+            'ai_suggestion': aiResp.assessment,
+            'ai_confidence': aiResp.confidence,
+            'severity': aiResp.escalateToVet ? 'urgent' : 'routine',
+            'first_aid_json': jsonEncode(aiResp.firstAid),
+            'photo_url': uploadedPhotoUrl,
+            'backend_case_id': result.caseId,
+            'ai_model': 'gemini-2.5-flash',
+            'status': 'open',
+            'vet_notified': 0,
+            'created_at': DateTime.now().toIso8601String(),
+          });
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.aiPhotoSavedSnack),
+                duration: const Duration(seconds: 3),
+                backgroundColor: const Color(0xFF22DD66),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          }
         }
       } else {
         // Route all text messages through Railway backend
@@ -348,8 +367,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
             message: text,
             conversationId: _conversationId,
             vetMode: _vetMode,
+            locale: localeStr,
           );
           aiResp = result.response;
+          proposedActions = result.proposedActions;
           if (mounted) {
             setState(() {
               _conversationId = result.conversationId;
@@ -362,10 +383,10 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
             if (mounted) context.read<FarmProvider>().notifyDirty();
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Saqlandi'),
-                  duration: Duration(seconds: 2),
-                  backgroundColor: Color(0xFF22DD66),
+                SnackBar(
+                  content: Text(l10n.aiSavedSnack),
+                  duration: const Duration(seconds: 2),
+                  backgroundColor: const Color(0xFF22DD66),
                   behavior: SnackBarBehavior.floating,
                 ),
               );
@@ -374,8 +395,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
         } catch (e) {
           debugPrint('[AI] backend error: $e');
           aiResp = VetResponse(
-            assessment:
-                "⚠️ Server bilan bog'lanib bo'lmadi, qayta urinib ko'ring",
+            assessment: l10n.aiServerError,
             confidence: 0,
           );
         }
@@ -394,6 +414,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
               intent: intent,
               isLoading: false,
               emergencyContact: emergencyContact,
+              proposedActions: proposedActions,
             );
           }
           _processing = false;
@@ -408,9 +429,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
           if (idx != -1) {
             _messages[idx] = _messages[idx].copyWith(
               vetResponse: VetResponse(
-                assessment: isRu
-                    ? 'Произошла ошибка. Попробуйте снова.'
-                    : "Xatolik yuz berdi. Qayta urinib ko'ring.",
+                assessment: l10n.aiGenericError,
                 confidence: 0,
               ),
               isLoading: false,
@@ -429,7 +448,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
     if (!status.isGranted) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Mikrofon ruxsati kerak')),
+          SnackBar(content: Text(AppLocalizations.of(context).aiMicPermission)),
         );
       }
       return;
@@ -468,9 +487,9 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
       if (mounted) {
         setState(() => _sttProcessing = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text("🎤 Ovoz tanilmadi, qayta urinib ko'ring"),
-            backgroundColor: Color(0xFFC23B2A),
+          SnackBar(
+            content: Text(AppLocalizations.of(context).aiSttFailedSnack),
+            backgroundColor: const Color(0xFFC23B2A),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -481,6 +500,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
   // ── Photo picker (camera + gallery) ──────────────────────────────────────
 
   Future<void> _pickPhoto() async {
+    final l10n = AppLocalizations.of(context);
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
@@ -513,13 +533,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
                 child: const Icon(Icons.camera_alt_rounded,
                     color: kOrange),
               ),
-              title: const Text(
-                '📷 Kamera',
-                style: TextStyle(
+              title: Text(
+                l10n.aiCameraOption,
+                style: const TextStyle(
                     fontSize: 14, fontWeight: FontWeight.w600),
               ),
-              subtitle: const Text('Yangi rasm olish',
-                  style: TextStyle(fontSize: 11)),
+              subtitle: Text(l10n.aiCameraSubtitle,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () =>
                   Navigator.pop(context, ImageSource.camera),
             ),
@@ -534,13 +554,13 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
                 child: const Icon(Icons.photo_library_rounded,
                     color: Color(0xFF2E9EF4)),
               ),
-              title: const Text(
-                '🖼️ Galereya',
-                style: TextStyle(
+              title: Text(
+                l10n.aiGalleryOption,
+                style: const TextStyle(
                     fontSize: 14, fontWeight: FontWeight.w600),
               ),
-              subtitle: const Text('Telefondan tanlash',
-                  style: TextStyle(fontSize: 11)),
+              subtitle: Text(l10n.aiGallerySubtitle,
+                  style: const TextStyle(fontSize: 11)),
               onTap: () =>
                   Navigator.pop(context, ImageSource.gallery),
             ),
@@ -550,10 +570,19 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
       ),
     );
     if (source == null || !mounted) return;
-    final xfile =
-        await _picker.pickImage(source: source, imageQuality: 80);
+    // The gallery/camera Activity can legitimately keep the app backgrounded
+    // past the 60s auto-lock threshold — suppress it for this call only.
+    final farmProvider = context.read<FarmProvider>();
+    farmProvider.beginTrustedBackgroundTask();
+    final XFile? xfile;
+    try {
+      xfile = await _picker.pickImage(source: source, imageQuality: 80);
+    } finally {
+      farmProvider.endTrustedBackgroundTask();
+    }
     if (xfile == null || !mounted) return;
-    setState(() => _pendingImagePath = xfile.path);
+    final pickedPath = xfile.path;
+    setState(() => _pendingImagePath = pickedPath);
   }
 
   // ── TTS ───────────────────────────────────────────────────────────────────
@@ -603,11 +632,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Color(0xFF0A0806),
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: kBg,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF5F3EF),
+        backgroundColor: kBg,
         body: Column(
           children: [
             _AppBar(
@@ -631,6 +660,11 @@ class _AiAssistantScreenState extends State<AiAssistantScreen>
                           onTts: () {
                             final text = msg.vetResponse?.assessment ?? '';
                             if (text.isNotEmpty) _playTts(msg.id, text);
+                          },
+                          onActionConfirmed: (result) {
+                            if (mounted) {
+                              context.read<FarmProvider>().notifyDirty();
+                            }
                           },
                         );
                       },
@@ -733,9 +767,7 @@ class _SkeletonBubbleState extends State<_SkeletonBubble>
           height: 44,
           margin: const EdgeInsets.symmetric(vertical: 2),
           decoration: BoxDecoration(
-            color: widget.isUser
-                ? const Color(0xFFE8E4DE)
-                : const Color(0xFFDDD9D2),
+            color: widget.isUser ? kMintSoft : kGreyLight,
             borderRadius: BorderRadius.circular(18),
           ),
         ),
@@ -753,9 +785,10 @@ class _AppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF0A0806),
+        color: kHeroDeep,
         borderRadius:
             BorderRadius.vertical(bottom: Radius.circular(24)),
       ),
@@ -768,7 +801,7 @@ class _AppBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded,
+            icon: const Icon(Icons.arrow_back_rounded,
                 color: Colors.white, size: 22),
             onPressed: onBack,
           ),
@@ -776,7 +809,7 @@ class _AppBar extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: kOrange.withValues(alpha: 0.22),
+              color: kMint.withValues(alpha: 0.22),
               shape: BoxShape.circle,
             ),
             child: const Center(
@@ -784,59 +817,52 @@ class _AppBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Sonya',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('Sonya',
+                    style: jakarta(
+                        size: 18, weight: FontWeight.w700, color: Colors.white)),
+                Text(
+                  l10n.aiExperience,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: inter(size: 11, color: Colors.white.withValues(alpha: 0.55)),
                 ),
-              ),
-              Text(
-                'AI Veterinar · 15 yil tajriba',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontSize: 11,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
           Container(
             width: 9,
             height: 9,
             decoration: const BoxDecoration(
-              color: Color(0xFF22DD66),
+              color: Color(0xFF34C759),
               shape: BoxShape.circle,
             ),
           ),
           const SizedBox(width: 4),
-          Text('Online',
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.55),
-                  fontSize: 10)),
+          Text(l10n.aiOnline,
+              style: inter(size: 10, color: Colors.white.withValues(alpha: 0.55))),
           const SizedBox(width: 4),
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert_rounded,
                 color: Colors.white.withValues(alpha: 0.7), size: 22),
-            color: const Color(0xFF1A1814),
+            color: kHeroCard,
             onSelected: (v) {
               if (v == 'delete') onDelete();
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'delete',
                 child: Row(
                   children: [
-                    Icon(Icons.delete_outline_rounded,
+                    const Icon(Icons.delete_outline_rounded,
                         color: Colors.redAccent, size: 20),
-                    SizedBox(width: 10),
-                    Text("Suhbatni o'chirish",
-                        style: TextStyle(color: Colors.white, fontSize: 14)),
+                    const SizedBox(width: 10),
+                    Text(l10n.aiDeleteConversation,
+                        style: const TextStyle(color: Colors.white, fontSize: 14)),
                   ],
                 ),
               ),
@@ -912,15 +938,18 @@ class _AiCard extends StatelessWidget {
   final ChatMessage msg;
   final bool isPlaying;
   final VoidCallback onTts;
+  final void Function(Map<String, dynamic> result)? onActionConfirmed;
   const _AiCard(
       {required this.msg,
       required this.isPlaying,
-      required this.onTts});
+      required this.onTts,
+      this.onActionConfirmed});
 
   @override
   Widget build(BuildContext context) {
     if (msg.isLoading) return const _LoadingBubble();
 
+    final l10n = AppLocalizations.of(context);
     final resp = msg.vetResponse;
     final intent = msg.intent;
     final isEmerg = intent?.isEmergency ?? false;
@@ -989,14 +1018,23 @@ class _AiCard extends StatelessWidget {
                               color: kDark,
                               height: 1.5),
                         ),
+                      // Phase 1: confirm cards for proposed write actions.
+                      for (final action in msg.proposedActions)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12),
+                          child: ProposedActionCard(
+                            action: action,
+                            onConfirmed: onActionConfirmed,
+                          ),
+                        ),
                       if (resp != null &&
                           resp.firstAid.isNotEmpty) ...[
                         const SizedBox(height: 14),
                         const Divider(height: 1),
                         const SizedBox(height: 12),
-                        const Text(
-                          '🩺 Darhol choralar:',
-                          style: TextStyle(
+                        Text(
+                          '🩺 ${l10n.aiFirstAid}',
+                          style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 13,
                               color: kDark),
@@ -1049,7 +1087,7 @@ class _AiCard extends StatelessWidget {
                               size: 14, color: kGrey),
                           const SizedBox(width: 5),
                           Text(
-                            '${resp.followUpInDays} kundan so\'ng tekshirish',
+                            l10n.aiFollowUp(resp.followUpInDays),
                             style: const TextStyle(
                                 fontSize: 11, color: kGrey),
                           ),
@@ -1074,7 +1112,7 @@ class _AiCard extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        isPlaying ? 'To\'xtatish' : '🔊 Eshitish',
+                        isPlaying ? l10n.aiStopBtn : '🔊 ${l10n.aiListenBtn}',
                         style: const TextStyle(
                             fontSize: 11, color: kOrange),
                       ),
@@ -1127,6 +1165,7 @@ class _EmergencyBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -1137,12 +1176,12 @@ class _EmergencyBanner extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(children: [
-            Icon(Icons.emergency_rounded, color: kError, size: 18),
-            SizedBox(width: 6),
+          Row(children: [
+            const Icon(Icons.emergency_rounded, color: kError, size: 18),
+            const SizedBox(width: 6),
             Text(
-              '🚨 FAVQULODDA HOLAT',
-              style: TextStyle(
+              '🚨 ${l10n.aiEmergency}',
+              style: const TextStyle(
                   color: kError,
                   fontWeight: FontWeight.w800,
                   fontSize: 13),
@@ -1152,7 +1191,7 @@ class _EmergencyBanner extends StatelessWidget {
               (contact!['phone'] ?? '').isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
-              'Veterinar: ${contact!['name']}',
+              l10n.aiVetContactLabel(contact!['name'] ?? ''),
               style: const TextStyle(
                   fontSize: 13,
                   color: kDark,
@@ -1188,9 +1227,9 @@ class _EmergencyBanner extends StatelessWidget {
             ),
           ] else ...[
             const SizedBox(height: 8),
-            const Text(
-              'Darhol veterinar chaqiring!',
-              style: TextStyle(
+            Text(
+              l10n.aiCallVetNow,
+              style: const TextStyle(
                   fontSize: 13,
                   color: kError,
                   fontWeight: FontWeight.w600),
@@ -1345,6 +1384,7 @@ class _InputBarState extends State<_InputBar> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: EdgeInsets.only(
         left: 12,
@@ -1404,10 +1444,10 @@ class _InputBarState extends State<_InputBar> {
                     ],
                   ),
                   const SizedBox(width: 10),
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      'Rasm qo\'shildi. Matn kiriting va yuboring.',
-                      style: TextStyle(fontSize: 12, color: kGrey),
+                      l10n.aiPhotoAddedHint,
+                      style: const TextStyle(fontSize: 12, color: kGrey),
                     ),
                   ),
                 ],
@@ -1443,10 +1483,10 @@ class _InputBarState extends State<_InputBar> {
                           border: Border.all(
                               color: kOrange.withValues(alpha: 0.3)),
                         ),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            SizedBox(
+                            const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
@@ -1454,10 +1494,10 @@ class _InputBarState extends State<_InputBar> {
                                 color: kOrange,
                               ),
                             ),
-                            SizedBox(width: 10),
+                            const SizedBox(width: 10),
                             Text(
-                              '🎤 Tahlil qilinmoqda...',
-                              style: TextStyle(
+                              l10n.aiTranscribing,
+                              style: const TextStyle(
                                   color: kOrange,
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500),
@@ -1467,11 +1507,9 @@ class _InputBarState extends State<_InputBar> {
                       )
                     : Container(
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF5F3EF),
+                          color: kCardBg,
                           borderRadius: BorderRadius.circular(30),
-                          border: Border.all(
-                              color:
-                                  Colors.black.withValues(alpha: 0.08)),
+                          border: Border.all(color: kGreyLight),
                         ),
                         child: TextField(
                           controller: widget.controller,
@@ -1483,14 +1521,14 @@ class _InputBarState extends State<_InputBar> {
                               : (_) => widget.onSend(),
                           style: const TextStyle(
                               fontSize: 14, color: kDark),
-                          decoration: const InputDecoration(
-                            hintText: 'Hayvon haqida yozing...',
+                          decoration: InputDecoration(
+                            hintText: l10n.aiInputHint,
                             hintStyle:
-                                TextStyle(color: kGrey, fontSize: 14),
+                                const TextStyle(color: kGrey, fontSize: 14),
                             border: InputBorder.none,
                             enabledBorder: InputBorder.none,
                             focusedBorder: InputBorder.none,
-                            contentPadding: EdgeInsets.symmetric(
+                            contentPadding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 12),
                             filled: false,
                           ),
@@ -1600,6 +1638,7 @@ class _RecordingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       height: 50,
       padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -1637,7 +1676,7 @@ class _RecordingIndicator extends StatelessWidget {
           if (!locked)
             Expanded(
               child: Text(
-                '↑ yuqoriga → qulflash',
+                l10n.aiSwipeToLock,
                 style: TextStyle(
                     color: kError.withValues(alpha: 0.7),
                     fontSize: 10),
@@ -1672,7 +1711,7 @@ class _BarButton extends StatelessWidget {
         width: 50,
         height: 50,
         decoration: BoxDecoration(
-          color: color ?? const Color(0xFFF0EDE8),
+          color: color ?? kCardBg,
           shape: BoxShape.circle,
         ),
         child: Icon(icon, color: iconColor ?? kGrey, size: 20),

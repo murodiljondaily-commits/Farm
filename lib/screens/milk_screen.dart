@@ -55,20 +55,21 @@ class _MilkScreenState extends State<MilkScreen> {
   }
 
   Future<void> _confirmAndDelete(MilkEntry e) async {
+    final l10n = AppLocalizations.of(context);
     final ok = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("O'chirishni tasdiqlang"),
-        content: Text("${e.timing} — ${e.amountLiters.toStringAsFixed(1)} litr (${e.recordedAt})\n\nBu yozuvni o'chirmoqchimisiz?"),
+        title: Text(l10n.deleteConfirmTitle),
+        content: Text("${e.timing} — ${e.amountLiters.toStringAsFixed(1)} litr (${e.recordedAt})\n\n${l10n.deleteConfirmBody}"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Bekor'),
+            child: Text(l10n.cancel),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text("O'chirish"),
+            child: Text(l10n.deleteBtn),
           ),
         ],
       ),
@@ -78,88 +79,185 @@ class _MilkScreenState extends State<MilkScreen> {
     if (mounted) _load();
   }
 
+  /// Sum of liters for the given ISO day (from loaded entries).
+  double _dayTotal(String isoDay) => _entries
+      .where((e) => e.recordedAt.startsWith(isoDay))
+      .fold(0.0, (a, e) => a + e.amountLiters);
+
+  String _isoDaysAgo(int n) => DateTime.now()
+      .subtract(Duration(days: n))
+      .toIso8601String()
+      .substring(0, 10);
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final yesterday = _dayTotal(_isoDaysAgo(1));
+    final trendPct = yesterday > 0
+        ? ((_todayTotal - yesterday) / yesterday * 100)
+        : null;
+
     return Scaffold(
       appBar: CapsuleBar(
-        title: l10n.milkTitle,
+        title: 'AgriVet',
         onBack: () => context.canPop() ? context.pop() : context.go('/'),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _addMilk(
+            DateTime.now().hour < 14 ? 'ertalab' : 'kechqurun', l10n),
+        child: const Icon(Icons.add_rounded, size: 30),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: kPrimary))
           : RefreshIndicator(
               onRefresh: _load,
-              child: Column(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 100),
                 children: [
+                  // ── Deep-teal hero: today's total ──────────────────────────
                   Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFF9A825), Color(0xFFF57F17)],
+                    padding: const EdgeInsets.all(24),
+                    decoration: tealHeroCard(radius: 28),
+                    child: Stack(children: [
+                      Positioned(
+                        right: -8,
+                        top: -8,
+                        child: Icon(Icons.water_drop_outlined,
+                            size: 96,
+                            color: Colors.white.withValues(alpha: 0.10)),
                       ),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        const Text('🥛', style: TextStyle(fontSize: 32)),
-                        const SizedBox(width: 16),
-                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(l10n.milkTodayLabel,
-                              style: const TextStyle(color: Colors.white70, fontSize: 10)),
-                          Text('${_todayTotal.toStringAsFixed(1)} litr',
-                              style: const TextStyle(
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(l10n.milkHeroLabel,
+                              style: labelBold(color: kMintBright)),
+                          const SizedBox(height: 8),
+                          Text(l10n.milkHeroTitle,
+                              style: jakarta(
+                                  size: 20,
+                                  weight: FontWeight.w600,
+                                  color: Colors.white)),
+                          const SizedBox(height: 8),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(_todayTotal.toStringAsFixed(1),
+                                  style: jakarta(
+                                      size: 52,
+                                      weight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.0)),
+                              const SizedBox(width: 8),
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(l10n.milkLitersUnit,
+                                    style: jakarta(
+                                        size: 18,
+                                        weight: FontWeight.w600,
+                                        color: kMintBright)),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 14),
+                          Row(children: [
+                            if (trendPct != null)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 10, vertical: 5),
+                                decoration: BoxDecoration(
                                   color: Colors.white,
-                                  fontSize: 22,
-                                  fontWeight: FontWeight.bold)),
-                        ]),
-                      ],
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: _TimingButton(
-                          label: l10n.milkMorning,
-                          done: _morningDone,
-                          onTap: () => _addMilk('ertalab', l10n),
-                        ),
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                child: Row(children: [
+                                  Icon(
+                                    trendPct >= 0
+                                        ? Icons.trending_up_rounded
+                                        : Icons.trending_down_rounded,
+                                    size: 15,
+                                    color: trendPct >= 0
+                                        ? kSecondary
+                                        : kError,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    '${trendPct >= 0 ? '+' : ''}${trendPct.toStringAsFixed(1)}%',
+                                    style: inter(
+                                        size: 12.5,
+                                        weight: FontWeight.w700,
+                                        color: trendPct >= 0
+                                            ? kSecondary
+                                            : kError),
+                                  ),
+                                ]),
+                              ),
+                            const SizedBox(width: 12),
+                            Text(
+                              l10n.milkYesterday(yesterday.toStringAsFixed(1)),
+                              style: inter(
+                                  size: 13.5,
+                                  color:
+                                      Colors.white.withValues(alpha: 0.70)),
+                            ),
+                          ]),
+                        ],
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _TimingButton(
-                          label: l10n.milkEvening,
-                          done: _eveningDone,
-                          onTap: () => _addMilk('kechqurun', l10n),
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(children: [
-                      Text(l10n.milkRecent,
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(fontWeight: FontWeight.bold)),
                     ]),
                   ),
-                  Expanded(
-                    child: _entries.isEmpty
-                        ? Center(child: Text(l10n.milkEmpty))
-                        : ListView.builder(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            itemCount: _entries.length,
-                            itemBuilder: (_, i) => _MilkTile(
-                                entry: _entries[i],
-                                onDelete: () => _confirmAndDelete(_entries[i])),
-                          ),
+                  const SizedBox(height: 16),
+
+                  // ── Timing cards: Ertalab / Kechqurun ──────────────────────
+                  Row(children: [
+                    Expanded(
+                      child: _TimingCard(
+                        label: l10n.milkMorning,
+                        timeRange: '06:00 - 08:30',
+                        icon: Icons.wb_twilight_rounded,
+                        done: _morningDone,
+                        onTap: () => _addMilk('ertalab', l10n),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: _TimingCard(
+                        label: l10n.milkEvening,
+                        timeRange: '17:00 - 19:30',
+                        icon: Icons.dark_mode_outlined,
+                        done: _eveningDone,
+                        onTap: () => _addMilk('kechqurun', l10n),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+
+                  // ── Recent entries ─────────────────────────────────────────
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(l10n.milkRecent,
+                          style: jakarta(size: 20, weight: FontWeight.w700)),
+                    ],
                   ),
+                  const SizedBox(height: 12),
+                  if (_entries.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Center(
+                          child: Text(l10n.milkEmpty,
+                              style: inter(color: kGrey))),
+                    )
+                  else
+                    ..._entries.map((e) => _MilkTile(
+                        entry: e, onDelete: () => _confirmAndDelete(e))),
+
+                  // ── Local trend insight (computed from real data) ──────────
+                  if (_entries.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    _TrendInsightCard(
+                      d0: _todayTotal,
+                      d1: _dayTotal(_isoDaysAgo(1)),
+                      d2: _dayTotal(_isoDaysAgo(2)),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -177,8 +275,7 @@ class _MilkScreenState extends State<MilkScreen> {
       final proceed = await showDialog<bool>(
         context: context,
         builder: (dlgCtx) => AlertDialog(
-          content: const Text(
-              "Bugun 2 mahal sut allaqachon qo'shilgan. Yana sut qo'shmoqchimisiz?"),
+          content: Text(l10n.milkDuplicateWarning),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(dlgCtx, false),
@@ -236,39 +333,72 @@ class _MilkScreenState extends State<MilkScreen> {
   }
 }
 
-class _TimingButton extends StatelessWidget {
-  final String label;
+/// "Ertalab / Kechqurun" session card — frosted well, mint check once logged.
+class _TimingCard extends StatelessWidget {
+  final String label, timeRange;
+  final IconData icon;
   final bool done;
   final VoidCallback onTap;
 
-  const _TimingButton(
-      {required this.label, required this.done, required this.onTap});
+  const _TimingCard({
+    required this.label,
+    required this.timeRange,
+    required this.icon,
+    required this.done,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = done ? kStatusSoglom : kSecondaryDark;
-    return OutlinedButton(
-      onPressed: onTap,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size(double.infinity, 52),
-        side: BorderSide(color: color, width: done ? 2 : 1.5),
-        foregroundColor: color,
-        backgroundColor: done ? kStatusSoglom.withValues(alpha: 0.08) : null,
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12)),
-          if (done) ...[
-            const SizedBox(width: 6),
-            Icon(Icons.check_circle, size: 16, color: color),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
+        decoration: frostedCard(radius: 22, color: Colors.white),
+        child: Column(
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: const BoxDecoration(
+                    color: kMintSoft,
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: kSecondary, size: 22),
+                ),
+                if (done)
+                  Positioned(
+                    right: -2,
+                    top: -2,
+                    child: Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: kStatusSoglom,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(Icons.check,
+                          size: 11, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Text(label, style: jakarta(size: 16, weight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(timeRange, style: inter(size: 12.5, color: kGrey)),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
+/// Farm-wide milk log entry (no per-animal link in this data model).
 class _MilkTile extends StatelessWidget {
   final MilkEntry entry;
   final VoidCallback onDelete;
@@ -277,22 +407,91 @@ class _MilkTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: ListTile(
-        leading: Text(
-          entry.timing == 'ertalab' ? '🌅' : '🌙',
-          style: const TextStyle(fontSize: 19),
-        ),
-        title: Text('${entry.amountLiters.toStringAsFixed(1)} litr',
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-        subtitle: Text('${entry.timing} · ${entry.recordedAt}'),
-        trailing: IconButton(
-          icon: const Icon(Icons.delete_outline, size: 20),
-          color: Colors.red[300],
-          tooltip: "O'chirish",
-          onPressed: onDelete,
-        ),
+    final l10n = AppLocalizations.of(context);
+    final isMorning = entry.timing == 'ertalab';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: frostedCard(radius: 20, color: Colors.white),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: const BoxDecoration(
+              color: kMintSoft,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(isMorning ? '🌅' : '🌙',
+                  style: const TextStyle(fontSize: 18)),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(isMorning ? l10n.milkMorningEntry : l10n.milkEveningEntry,
+                    style: jakarta(size: 15, weight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Row(children: [
+                  Icon(Icons.schedule_rounded, size: 13, color: kGrey),
+                  const SizedBox(width: 4),
+                  Text(entry.recordedAt,
+                      style: inter(size: 12.5, color: kGrey)),
+                ]),
+              ],
+            ),
+          ),
+          Text('${entry.amountLiters.toStringAsFixed(1)} L',
+              style: statNumber(size: 18)),
+          IconButton(
+            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+            color: kError.withValues(alpha: 0.7),
+            tooltip: l10n.deleteBtn,
+            onPressed: onDelete,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Local (non-AI) trend insight computed from the last 3 days of real data.
+class _TrendInsightCard extends StatelessWidget {
+  final double d0, d1, d2;
+  const _TrendInsightCard({required this.d0, required this.d1, required this.d2});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final avg = (d0 + d1 + d2) / 3;
+    final rising = d0 >= d1 && d1 >= d2 && (d0 - d2).abs() > 0.01;
+    final falling = d0 <= d1 && d1 <= d2 && (d2 - d0).abs() > 0.01;
+    final message = rising
+        ? l10n.milkTrendRising
+        : falling
+            ? l10n.milkTrendFalling
+            : l10n.milkTrendStable(avg.toStringAsFixed(1));
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: kMintSoft,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.auto_awesome_rounded, size: 18, color: kSecondary),
+            const SizedBox(width: 8),
+            Text(l10n.milkAnalysisLabel, style: labelBold(color: kSecondary)),
+          ]),
+          const SizedBox(height: 10),
+          Text(message, style: inter(size: 14.5, height: 1.5)),
+        ],
       ),
     );
   }

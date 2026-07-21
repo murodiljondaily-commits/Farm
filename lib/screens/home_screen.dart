@@ -8,7 +8,7 @@ import '../providers/farm_provider.dart';
 import '../providers/locale_provider.dart';
 import '../services/db_service.dart';
 import '../models/models.dart';
-import '../widgets/stat_card.dart';
+import '../widgets/agri_nav_bar.dart';
 import '../widgets/quick_action_tile.dart';
 import '../l10n/app_localizations.dart';
 
@@ -21,10 +21,13 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, int> _speciesCounts = {};
-  double _totalMilk = 0;
   int _openCases = 0;
   int _dueSoon = 0;
   int _youngCount = 0;
+  int _soglomCount = 0;
+  int _davoCount = 0;
+  int _kritikCount = 0;
+  double _todayMilk = 0.0;
   bool _loading = true;
   bool _loadStarted = false;
   int _seenAiWriteCount = 0;
@@ -52,17 +55,30 @@ class _HomeScreenState extends State<HomeScreen> {
     provider.touch();
     try {
       final counts = await DbService.getSpeciesCounts(farmId);
-      final milk = await DbService.getTotalMilk(farmId);
-      final cases = await DbService.getCases(farmId, status: 'open');
+      // No status filter — count both 'open' and 'davolanmoqda' as active
+      // (getCases only supports one exact-match status).
+      final allCases = await DbService.getCases(farmId);
+      final cases = allCases.where((c) => c.isActive).toList();
       final vacDue = await DbService.getDueVaccinations(farmId);
       final youngAnimals = await DbService.getAnimals(farmId, youngOnly: true);
+      // Status breakdown for the "Farm holati" card
+      final allAnimals = await DbService.getAnimals(farmId);
+      final soglom =
+          allAnimals.where((a) => a.status == 'soglom').length;
+      final davo =
+          allAnimals.where((a) => a.status == 'davolanmoqda').length;
+      final kritik = allAnimals.where((a) => a.status == 'kritik').length;
+      final todayMilk = await DbService.getTodayMilk(farmId);
       if (mounted) {
         setState(() {
           _speciesCounts = counts;
-          _totalMilk = milk;
           _openCases = cases.length;
           _dueSoon = vacDue.length;
           _youngCount = youngAnimals.length;
+          _soglomCount = soglom;
+          _davoCount = davo;
+          _kritikCount = kritik;
+          _todayMilk = todayMilk;
           _loading = false;
         });
       }
@@ -71,7 +87,10 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  int get _totalAnimals => _speciesCounts.values.fold(0, (a, b) => a + b);
+  // Species counts now exclude young (<24mo); add them back so the total
+  // and the "All" card still represent every animal on the farm.
+  int get _totalAnimals =>
+      _speciesCounts.values.fold(0, (a, b) => a + b) + _youngCount;
 
   @override
   Widget build(BuildContext context) {
@@ -100,8 +119,8 @@ class _HomeScreenState extends State<HomeScreen> {
         statusBarColor: Colors.transparent,
         statusBarBrightness: Brightness.dark,
         statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: kHeroDeep,
-        systemNavigationBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: kBg,
+        systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
         backgroundColor: kBg,
@@ -116,16 +135,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Center(child: CircularProgressIndicator(color: kPrimary)),
                 )
               else ...[
-                _buildAlerts(l10n),
                 _buildStats(l10n),
                 _buildSpeciesGrid(context, l10n),
+                _buildAlerts(l10n),
                 _buildQuickActions(context, l10n),
-                const SliverToBoxAdapter(child: SizedBox(height: 120)),
+                const SliverToBoxAdapter(child: SizedBox(height: 130)),
               ],
             ],
           ),
         ),
-        bottomNavigationBar: _BottomNav(currentIndex: 0),
+        bottomNavigationBar: const AgriNavBar(currentIndex: 0),
         floatingActionButton: _AiFab(),
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       ),
@@ -136,73 +155,74 @@ class _HomeScreenState extends State<HomeScreen> {
   SliverAppBar _buildAppBar(
       FarmProvider provider, Farm? farm, String today, AppLocalizations l10n) {
     return SliverAppBar(
-      expandedHeight: 210,
+      expandedHeight: 226,
       floating: false,
       pinned: true,
       backgroundColor: kHeroDeep,
       systemOverlayStyle: SystemUiOverlayStyle.light,
       flexibleSpace: FlexibleSpaceBar(
         collapseMode: CollapseMode.pin,
-        background: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Clean cinematic gradient
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [kHeroDeep, kHeroSurface],
+        background: ClipRRect(
+          // Curved organic header per the 2030 design
+          borderRadius: const BorderRadius.only(
+            bottomLeft: Radius.circular(36),
+            bottomRight: Radius.circular(36),
+          ),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [kHeroDeep, kHeroCard],
+                  ),
                 ),
               ),
-            ),
-            // Content
-            Padding(
-              padding: const EdgeInsets.fromLTRB(22, 60, 22, 24),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  // Date chip
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: kOrange.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: kOrange.withValues(alpha: 0.35), width: 1),
-                    ),
-                    child: Text(
-                      today,
-                      style: const TextStyle(
-                          color: kOrangeLight,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    l10n.homeGreeting(provider.userName ?? ''),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 32,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.8,
-                      height: 1.15,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    farm?.farmName ?? '',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.50),
-                        fontSize: 17),
-                  ),
-                ],
+              // Floating aqua bubble accent
+              Positioned(
+                right: -60,
+                top: -40,
+                child: aquaBubble(size: 220, opacity: 0.14),
               ),
-            ),
-          ],
+              // Content
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 60, 22, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      '${l10n.homeTodayPrefix} $today',
+                      style: labelBold(color: kSage),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${l10n.homeGreeting(provider.userName ?? '')} 👋',
+                      style: jakarta(
+                        size: 32,
+                        weight: FontWeight.w700,
+                        color: Colors.white,
+                        letterSpacing: -0.64,
+                        height: 1.15,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      farm?.farmName != null && farm!.farmName.isNotEmpty
+                          ? farm.farmName
+                          : "Fermer xo'jaligingiz uchun umumiy ma'lumot",
+                      style: inter(
+                        size: 16,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
       leading: Builder(
@@ -259,58 +279,153 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Alert banners ──────────────────────────────────────────────────────────
+  // ── Single red alert banner (per 2030 design) ──────────────────────────────
   Widget _buildAlerts(AppLocalizations l10n) {
-    if (_openCases == 0 && _dueSoon == 0) {
+    final totalAlerts = _openCases + _dueSoon;
+    if (totalAlerts == 0) {
       return const SliverToBoxAdapter(child: SizedBox.shrink());
     }
+    final subLines = <String>[
+      if (_dueSoon > 0) '$_dueSoon ta emlash muddati yaqinlashmoqda',
+      if (_openCases > 0) '$_openCases ta ochiq kasallik holati',
+    ];
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-        child: Column(children: [
-          if (_openCases > 0)
-            _AlertBanner(
-              iconColor: const Color(0xFFE65100),
-              icon: Icons.medical_services_outlined,
-              text: l10n.homeOpenCasesAlert(_openCases),
-              onTap: () => context.push('/health'),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        child: GestureDetector(
+          onTap: () =>
+              context.push(_openCases > 0 ? '/health' : '/vaccination'),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: kErrorContainer,
+              borderRadius: BorderRadius.circular(24),
             ),
-          if (_dueSoon > 0)
-            _AlertBanner(
-              iconColor: const Color(0xFF1565C0),
-              icon: Icons.vaccines_outlined,
-              text: l10n.homeDueSoonAlert(_dueSoon),
-              onTap: () => context.push('/vaccination'),
-            ),
-        ]),
+            child: Row(children: [
+              const Icon(Icons.warning_amber_rounded,
+                  color: kError, size: 28),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$totalAlerts ta ogohlantirish mavjud',
+                      style: jakarta(
+                          size: 16, weight: FontWeight.w700, color: kError),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subLines.join('\n'),
+                      style: inter(
+                          size: 13.5,
+                          color: const Color(0xFF93000A),
+                          height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right_rounded, color: kError),
+            ]),
+          ),
+        ),
       ),
     );
   }
 
-  // ── Stats row ──────────────────────────────────────────────────────────────
+  // ── "Farm holati" overview card (2×2 status grid per 2030 design) ──────────
   Widget _buildStats(AppLocalizations l10n) {
+    final total = _totalAnimals;
+    String pct(int n) =>
+        total > 0 ? '${((n / total) * 100).round()}%' : '—';
+    final warnings = _dueSoon + _kritikCount;
+
     return SliverToBoxAdapter(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 20, 18, 0),
-        child: Row(children: [
-          Expanded(
-            child: StatCard(
-              label: l10n.homeTotalAnimals,
-              value: '$_totalAnimals',
-              icon: Icons.pets_rounded,
-              color: kOrange,
-            ),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: frostedCard(radius: 28, color: Colors.white),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(l10n.homeFarmStatusTitle,
+                      style: jakarta(size: 20, weight: FontWeight.w700)),
+                  const Icon(Icons.trending_up_rounded,
+                      color: kSecondary, size: 22),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(children: [
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.groups_rounded,
+                    iconColor: kSecondary,
+                    label: l10n.homeTotalAnimalsLabel,
+                    labelColor: kSecondary,
+                    value: '$total',
+                    sub: l10n.homeAllTypesLabel,
+                    subColor: kGrey,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.check_circle_rounded,
+                    iconColor: kStatusSoglom,
+                    label: l10n.homeHealthyStatLabel,
+                    labelColor: kStatusSoglom,
+                    value: '$_soglomCount',
+                    sub: pct(_soglomCount),
+                    subColor: kStatusSoglom,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              Row(children: [
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.healing_rounded,
+                    iconColor: kStatusDavolanmoqda,
+                    label: l10n.homeTreatingLabel,
+                    labelColor: kStatusDavolanmoqda,
+                    value: '$_davoCount',
+                    sub: pct(_davoCount),
+                    subColor: kStatusDavolanmoqda,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _MiniStat(
+                    icon: Icons.warning_amber_rounded,
+                    iconColor: kError,
+                    label: l10n.homeWarningLabel,
+                    labelColor: kError,
+                    value: '$warnings',
+                    sub: l10n.homeAttentionNeeded,
+                    subColor: kError,
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () => context.push('/milk'),
+                child: _MiniStat(
+                  icon: Icons.water_drop_rounded,
+                  iconColor: kStatusKuzatuvda,
+                  label: l10n.homeTodayMilkLabel,
+                  labelColor: kStatusKuzatuvda,
+                  value: _todayMilk.toStringAsFixed(1),
+                  sub: l10n.milkLitersUnit,
+                  subColor: kGrey,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: StatCard(
-              label: l10n.homeTodayMilk,
-              value: '${_totalMilk.toStringAsFixed(1)} L',
-              icon: Icons.water_drop_outlined,
-              color: const Color(0xFF2E9EF4),
-            ),
-          ),
-        ]),
+        ),
       ),
     );
   }
@@ -335,7 +450,7 @@ class _HomeScreenState extends State<HomeScreen> {
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 1.20,
+            childAspectRatio: 1.02,
             children: [
               ...species.map((s) => _SpeciesCard(
                     species: s.$1,
@@ -346,7 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   )),
               _SpeciesCard(
                 species: 'young',
-                label: 'Yosh hayvonlar',
+                label: l10n.speciesYoung,
                 count: _youngCount,
                 countLabel: l10n.homeAnimalCount(_youngCount),
                 onTap: () => context.push('/animals?young=true'),
@@ -377,35 +492,35 @@ class _HomeScreenState extends State<HomeScreen> {
             icon: Icons.medical_services_rounded,
             label: l10n.homeActionHealth,
             subtitle: l10n.homeActionHealthSub,
-            color: const Color(0xFFE53935),
+            color: kError,
             onTap: () => context.push('/health'),
           ),
           QuickActionTile(
             icon: Icons.vaccines_rounded,
             label: l10n.homeActionVacc,
             subtitle: l10n.homeActionVaccSub,
-            color: kOrange,
+            color: kMint,
             onTap: () => context.push('/vaccination'),
           ),
           QuickActionTile(
             icon: Icons.water_drop_rounded,
             label: l10n.homeActionMilk,
             subtitle: l10n.homeActionMilkSub,
-            color: const Color(0xFF2E9EF4),
+            color: kStatusKuzatuvda,
             onTap: () => context.push('/milk'),
           ),
           QuickActionTile(
             icon: Icons.monitor_weight_rounded,
             label: l10n.homeActionWeight,
             subtitle: l10n.homeActionWeightSub,
-            color: const Color(0xFF6A1B9A),
+            color: kTeal,
             onTap: () => context.push('/weight'),
           ),
           QuickActionTile(
             icon: Icons.bar_chart_rounded,
             label: l10n.homeActionReport,
             subtitle: l10n.homeActionReportSub,
-            color: const Color(0xFF00838F),
+            color: kSecondary,
             onTap: () => context.push('/report'),
           ),
         ]),
@@ -434,58 +549,53 @@ class _SectionTitle extends StatelessWidget {
   }
 }
 
-// ── Alert banner ───────────────────────────────────────────────────────────────
+// ── Mini stat well (inside "Farm holati" card) ────────────────────────────────
 
-class _AlertBanner extends StatelessWidget {
-  final Color iconColor;
+class _MiniStat extends StatelessWidget {
   final IconData icon;
-  final String text;
-  final VoidCallback onTap;
+  final Color iconColor, labelColor, subColor;
+  final String label, value, sub;
 
-  const _AlertBanner({
-    required this.iconColor,
+  const _MiniStat({
     required this.icon,
-    required this.text,
-    required this.onTap,
+    required this.iconColor,
+    required this.label,
+    required this.labelColor,
+    required this.value,
+    required this.sub,
+    required this.subColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: kCardBg,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-              color: iconColor.withValues(alpha: 0.30), width: 1.5),
-          boxShadow: elevatedShadow(glowColor: iconColor, depth: 0.5),
-        ),
-        child: Row(children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(11),
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: kCardBg,
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(icon, size: 15, color: iconColor),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: labelBold(color: labelColor),
+              ),
             ),
-            child: Icon(icon, color: iconColor, size: 19),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                  color: iconColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 16),
-            ),
-          ),
-          Icon(Icons.chevron_right_rounded,
-              color: iconColor.withValues(alpha: 0.5), size: 20),
-        ]),
+          ]),
+          const SizedBox(height: 8),
+          Text(value, style: statNumber(size: 30)),
+          const SizedBox(height: 2),
+          Text(sub,
+              style:
+                  inter(size: 12.5, weight: FontWeight.w600, color: subColor)),
+        ],
       ),
     );
   }
@@ -527,6 +637,7 @@ class _SpeciesCardState extends State<_SpeciesCard> {
             ? [const Color(0xFF4CAF50), const Color(0xFF1B5E20)]
             : speciesGradient(widget.species);
 
+    // 2030 design: frosted white card, circular species avatar, big count.
     return GestureDetector(
       onTapDown: (_) => setState(() => _pressed = true),
       onTapUp: (_) {
@@ -535,175 +646,54 @@ class _SpeciesCardState extends State<_SpeciesCard> {
       },
       onTapCancel: () => setState(() => _pressed = false),
       child: AnimatedScale(
-        scale: _pressed ? 0.94 : 1.0,
+        scale: _pressed ? 0.98 : 1.0,
         duration: const Duration(milliseconds: 120),
         curve: Curves.easeOut,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 120),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: colors,
-            ),
-            boxShadow: _pressed
-                ? []
-                : [
-                    BoxShadow(
-                      color: colors[0].withValues(alpha: 0.45),
-                      blurRadius: 18,
-                      offset: const Offset(0, 7),
-                      spreadRadius: -4,
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.20),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-          ),
+        child: Container(
+          decoration: frostedCard(radius: 28, color: Colors.white),
           padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Top row: emoji + mini count badge
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(emoji, style: const TextStyle(fontSize: 38)),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.22),
-                      borderRadius: BorderRadius.circular(20),
+          // Content height can exceed the grid cell on some devices (font
+          // scale, small-width phones) — FittedBox guarantees no overflow
+          // regardless, instead of a fragile aspect-ratio/padding tune.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        colors[0].withValues(alpha: 0.22),
+                        colors[1].withValues(alpha: 0.30),
+                      ],
                     ),
-                    child: Text(
-                      '${widget.count}',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700),
-                    ),
+                    border: Border.all(
+                        color: colors[0].withValues(alpha: 0.35), width: 1.5),
                   ),
-                ],
-              ),
-              const Spacer(),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.80),
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
+                  child: Center(
+                    child: Text(emoji, style: const TextStyle(fontSize: 34)),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.countLabel,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
+                const SizedBox(height: 10),
+                Text('${widget.count}', style: statNumber(size: 26)),
+                const SizedBox(height: 2),
+                Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: inter(size: 14, color: kGrey, weight: FontWeight.w500),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
-}
-
-// ── Dark floating bottom nav ───────────────────────────────────────────────────
-
-class _BottomNav extends StatelessWidget {
-  final int currentIndex;
-
-  const _BottomNav({required this.currentIndex});
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return Container(
-      decoration: BoxDecoration(
-        color: kHeroDeep,
-        border: Border(
-          top: BorderSide(
-              color: Colors.white.withValues(alpha: 0.06), width: 1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.50),
-            blurRadius: 32,
-            offset: const Offset(0, -8),
-          ),
-          BoxShadow(
-            color: kOrange.withValues(alpha: 0.06),
-            blurRadius: 20,
-          ),
-        ],
-      ),
-      child: SafeArea(
-        top: false,
-        child: BottomNavigationBar(
-          backgroundColor: Colors.transparent,
-          currentIndex: currentIndex,
-          selectedItemColor: kOrange,
-          unselectedItemColor: const Color(0xFF5A5550),
-          elevation: 0,
-          type: BottomNavigationBarType.fixed,
-          selectedLabelStyle:
-              const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-          unselectedLabelStyle: const TextStyle(fontSize: 13),
-          onTap: (i) {
-            switch (i) {
-              case 0:
-                context.go('/');
-              case 1:
-                context.go('/animals');
-              case 2:
-                context.go('/health');
-              case 3:
-                context.go('/farm-gate');
-              case 4:
-                context.go('/archive');
-            }
-          },
-          items: [
-            _navItem(Icons.home_rounded, Icons.home_outlined,
-                l10n.homeNavHome, currentIndex == 0),
-            _navItem(Icons.pets_rounded, Icons.pets_outlined,
-                l10n.homeNavAnimals, currentIndex == 1),
-            _navItem(Icons.medical_services_rounded,
-                Icons.medical_services_outlined,
-                l10n.homeNavHealth, currentIndex == 2),
-            _navItem(Icons.home_work_rounded, Icons.home_work_outlined,
-                l10n.homeNavFarm, currentIndex == 3),
-            _navItem(Icons.inventory_2_rounded, Icons.inventory_2_outlined,
-                'Arxiv', currentIndex == 4),
-          ],
-        ),
-      ),
-    );
-  }
-
-  BottomNavigationBarItem _navItem(
-      IconData active, IconData idle, String label, bool isSelected) {
-    return BottomNavigationBarItem(
-      icon: Icon(idle, size: 24),
-      activeIcon: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
-        decoration: BoxDecoration(
-          color: kOrange.withValues(alpha: 0.16),
-          borderRadius: BorderRadius.circular(22),
-          border:
-              Border.all(color: kOrange.withValues(alpha: 0.28), width: 1),
-        ),
-        child: Icon(active, size: 22, color: kOrange),
-      ),
-      label: label,
     );
   }
 }
@@ -713,41 +703,43 @@ class _BottomNav extends StatelessWidget {
 class _AiFab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    // Sonya avatar bubble with online dot (per 2030 design).
     return GestureDetector(
       onTap: () => context.push('/ai-assistant'),
-      child: Container(
-        height: 58,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [kOrange, kOrangeDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: kOrange.withValues(alpha: 0.45),
-              blurRadius: 20,
-              offset: const Offset(0, 6),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 62,
+            height: 62,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: const LinearGradient(
+                colors: [kMint, kTeal],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: aquaGlow(),
             ),
-          ],
-        ),
-        child: const Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('🩺', style: TextStyle(fontSize: 22)),
-            SizedBox(width: 8),
-            Text(
-              'Sonya AI',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
+            child: const Center(
+              child: Text('🩺', style: TextStyle(fontSize: 26)),
+            ),
+          ),
+          Positioned(
+            right: 2,
+            bottom: 2,
+            child: Container(
+              width: 15,
+              height: 15,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF34C759),
+                border: Border.all(color: Colors.white, width: 2.5),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -763,7 +755,12 @@ class _AppDrawer extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final provider = context.watch<FarmProvider>();
     final localeProvider = context.watch<LocaleProvider>();
-    final isUz = localeProvider.locale.languageCode == 'uz';
+    final currentLocale = localeProvider.locale;
+    final isUzLatin =
+        currentLocale.languageCode == 'uz' && currentLocale.scriptCode != 'Cyrl';
+    final isUzCyrl =
+        currentLocale.languageCode == 'uz' && currentLocale.scriptCode == 'Cyrl';
+    final isRu = currentLocale.languageCode == 'ru';
 
     return Drawer(
       backgroundColor: kCardBg,
@@ -860,17 +857,27 @@ class _AppDrawer extends StatelessWidget {
                   Row(children: [
                     Expanded(
                       child: _LangButton(
-                        label: "O'zbek",
-                        active: isUz,
+                        label: "Lotin",
+                        active: isUzLatin,
                         onTap: () =>
                             localeProvider.setLocale(const Locale('uz')),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _LangButton(
+                        label: 'Кирилл',
+                        active: isUzCyrl,
+                        onTap: () => localeProvider.setLocale(
+                            const Locale.fromSubtags(
+                                languageCode: 'uz', scriptCode: 'Cyrl')),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: _LangButton(
                         label: 'Русский',
-                        active: !isUz,
+                        active: isRu,
                         onTap: () =>
                             localeProvider.setLocale(const Locale('ru')),
                       ),
@@ -897,7 +904,7 @@ class _AppDrawer extends StatelessWidget {
             ),
             _DrawerTile(
               icon: Icons.person_outlined,
-              label: 'Shaxsiy ma\'lumotlar',
+              label: l10n.menuPersonalInfo,
               color: kPrimaryDark,
               onTap: () {
                 Navigator.pop(context);
@@ -994,8 +1001,9 @@ class _LangButton extends StatelessWidget {
         child: Center(
           child: Text(
             label,
+            // 3 segments now share the row (was 2) — smaller to avoid wrapping.
             style: TextStyle(
-              fontSize: 17,
+              fontSize: 14,
               fontWeight: FontWeight.w700,
               color: active ? Colors.white : kGrey,
             ),
@@ -1046,6 +1054,7 @@ class _DrawerTile extends StatelessWidget {
 // ── Personal info edit sheet ──────────────────────────────────────────────────
 
 void _showPersonalInfoSheet(BuildContext context) {
+  final l10n = AppLocalizations.of(context);
   final provider = context.read<FarmProvider>();
   final nameCtrl = TextEditingController(text: provider.userName ?? '');
   bool saving = false;
@@ -1075,9 +1084,9 @@ void _showPersonalInfoSheet(BuildContext context) {
                 ),
               ),
             ),
-            const Text(
-              "Shaxsiy ma'lumotlar",
-              style: TextStyle(
+            Text(
+              l10n.menuPersonalInfo,
+              style: const TextStyle(
                   fontSize: 22, fontWeight: FontWeight.w800, color: kDark),
             ),
             const SizedBox(height: 20),
@@ -1085,7 +1094,7 @@ void _showPersonalInfoSheet(BuildContext context) {
               controller: nameCtrl,
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
-                labelText: 'Ism',
+                labelText: l10n.animalNameLabel,
                 prefixIcon: const Icon(Icons.person_outline_rounded),
                 border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14)),
@@ -1114,7 +1123,7 @@ void _showPersonalInfoSheet(BuildContext context) {
                         height: 20,
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('Saqlash'),
+                    : Text(l10n.save),
               ),
             ),
           ],

@@ -1,0 +1,803 @@
+{
+  "@@locale": "uz_Cyrl",
+  "errorDefault": "⚠️ Хатолик, қайта уриниб кўринг",
+  "errorOk": "ОК",
+  "cancel": "Бекор",
+  "save": "Сақлаш",
+  "continueBtn": "Давом етиш",
+  "hideText": "Яшириш",
+  "showText": "Кўрсатиш",
+  "errorGeneric": "Хатолик юз берди",
+  "confirm": "Тасдиқлаш",
+  "yes": "Ҳа",
+  "deleteBtn": "Ўчириш",
+  "closeBtn": "Ёпиш",
+  "deleteConfirmTitle": "Ўчиришни тасдиқланг",
+  "deleteConfirmBody": "Бу ёзувни ўчирмоқчимисиз?",
+  "errorWithDetail": "Хатолик: {error}",
+  "@errorWithDetail": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "openStatus": "Очиқ",
+  "closedStatus": "Ёпиқ",
+  "enterHint": "Киритинг",
+  "enterNumber": "Рақам киритинг",
+  "fieldRequired": "Майдонни тўлдиринг",
+  "proposedActionDone": "Бажарилди",
+  "proposedActionCancelled": "Бекор қилинди",
+  "proposedActionDefaultSummary": "Амални тасдиқланг",
+  "proposedActionNeedsConfirm": "Тасдиқлаш керак",
+  "proposedActionAffectedCount": "{count} та ҳайвон",
+  "@proposedActionAffectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "proposedActionCancelBtn": "Бекор қилиш",
+  "proposedActionError": "Хатолик — қайта урининг",
+  "roleOwner": "Ферма егаси",
+  "roleVet": "Ветеринар",
+  "roleFarmer": "Фермер",
+  "roleCoowner": "Ҳамегаси",
+  "roleVetDesc": "Касалликлар ташхиси, расмий даволаниш қарорлари",
+  "roleFarmerDesc": "Ҳайвонларни рўйхатга олади, маълумотлар киритади",
+  "roleCoownerDesc": "Егаси билан бир хил ҳуқуқлар, аъзоларни тасдиқлаш",
+  "speciesSigir": "Сигир",
+  "speciesQoy": "Қўй",
+  "speciesEchki": "Ечки",
+  "speciesOt": "От",
+  "speciesChochqa": "Чўчқа",
+  "speciesBoshqa": "Бошқа",
+  "speciesSigirPlural": "Моллар",
+  "speciesQoyPlural": "Қўйлар",
+  "speciesEchkiPlural": "Ечкилар",
+  "speciesOtPlural": "Отлар",
+  "speciesAll": "Барчаси",
+  "speciesYoung": "Ёш ҳайвонлар",
+  "statusSoglom": "Соғлом",
+  "statusDavolanmoqda": "Даволанмоқда",
+  "statusKritik": "Критик",
+  "statusKuzatuvda": "Кузатувда",
+  "statusSotildi": "Сотилди",
+  "statusOldi": "Ўлди",
+  "severityRoutine": "Оддий",
+  "severityUrgent": "Шошилинч",
+  "severityEmergency": "🚨 Фавқулодда",
+  "googleSignInTitle": "АгриВет",
+  "googleSignInSubtitle": "Ферма ҳайвонларини бошқариш\nва АИ ветеринар ёрдамчи",
+  "googleSignInBtn": "Гоогле орқали кириш",
+  "googleSignInLoading": "Кириш...",
+  "googleSignInError": "Кириш амалга ошмади. Қайта уриниб кўринг.",
+  "googleSignInOrDivider": "ёки",
+  "googleSignInViaPhone": "Телефон рақам орқали кириш",
+  "phoneAuthTitle": "Телефон орқали кириш",
+  "phoneAuthSubtitle": "СМС орқали тасдиқлаш коди юборамиз",
+  "phoneEnterNumber": "Телефон рақамингиз",
+  "phoneNumberHint": "ХХ ХХХ ХХ ХХ",
+  "phoneSendCode": "СМС код юбориш",
+  "phoneInvalidNumber": "Телефон рақамни тўғри киритинг",
+  "phoneFieldEmpty": "Телефон рақамини киритинг",
+  "phoneFieldWrongLength": "Айнан 9 та рақам киритинг",
+  "phoneTooManyRequests": "Жуда кўп уриниш. Кейинроқ уриниб кўринг.",
+  "phoneError": "Хатолик юз берди. Қайта уриниб кўринг.",
+  "phoneOtpTitle": "СМС кодни киритинг",
+  "phoneOtpSubtitle": "{phone} рақамига код юборилди",
+  "@phoneOtpSubtitle": {
+    "placeholders": {
+      "phone": {
+        "type": "String"
+      }
+    }
+  },
+  "phoneOtpHint": "------",
+  "phoneOtpVerify": "Тасдиқлаш",
+  "phoneOtpResend": "Қайта юбориш",
+  "phoneOtpResendIn": "{sec} сонияда қайта юбориш",
+  "@phoneOtpResendIn": {
+    "placeholders": {
+      "sec": {
+        "type": "int"
+      }
+    }
+  },
+  "phoneOtpError": "Код нотўғри ёки муддати ўтган",
+  "phoneOtpAutoVerified": "Автоматик тасдиқланди",
+  "welcomeSubtitle": "Ферма ҳайвонларини бошқариш\nва АИ ветеринар ёрдамчи",
+  "welcomeFeatureAnimals": "Ҳайвонларни рўйхатга олинг",
+  "welcomeFeatureAi": "АИ ветеринар ёрдамчи",
+  "welcomeFeatureHistory": "Емлаш ва касаллик тарихи",
+  "welcomeFeatureSheets": "Гоогле Шеетс синхронизатсия",
+  "welcomeNewFarm": "Янги ферма очиш",
+  "welcomeJoinFarm": "Мавжуд фермага қўшилиш",
+  "setupTitle": "Янги ферма",
+  "setupHeading": "Фермангизни созлаш",
+  "setupSubtitle": "Барча майдонлар тўлдирилиши шарт",
+  "setupOwnerName": "Исм-фамилия",
+  "setupOwnerNameHint": "Исмингизни киритинг",
+  "setupFarmName": "Ферма номи",
+  "setupLocation": "Манзил",
+  "setupLocationHint": "Туман, вилоят",
+  "setupEmail": "Емаил (ихтиёрий)",
+  "setupPhone": "Телефон рақами",
+  "joinTitle": "Фермага қўшилиш",
+  "joinCodeTitle": "Фарм коди",
+  "joinCodeSubtitle": "Ферма егасидан фарм кодини олинг (АГВЕТ-ХХХХХХ)",
+  "joinCodeCheck": "Кодни текшириш",
+  "joinCodeNotFound": "Фарм коди топилмади. Текшириб кўринг.",
+  "joinPhoneRequired": "Телефон рақамини тўлиқ киритинг",
+  "joinRoleTitle": "Ролингизни танланг",
+  "joinRoleSubtitle": "\"{farmName}\" фермасига қўшиласиз",
+  "@joinRoleSubtitle": {
+    "placeholders": {
+      "farmName": {
+        "type": "String"
+      }
+    }
+  },
+  "joinApprovalNote": "Қўшилиш сўрови ферма егасига юборилади ва тасдиқлашни кутади.",
+  "joinDetailsTitle": "Шахсий маълумотлар",
+  "joinDetailsSubtitle": "\"{farmName}\" — {role} ролида",
+  "@joinDetailsSubtitle": {
+    "placeholders": {
+      "farmName": {
+        "type": "String"
+      },
+      "role": {
+        "type": "String"
+      }
+    }
+  },
+  "joinNameLabel": "Исм-фамилия",
+  "joinNameHint": "Исмингизни киритинг",
+  "joinNameRequired": "Исмингизни киритинг",
+  "joinLocationLabel": "Манзил",
+  "joinLocationRequired": "Манзилни киритинг",
+  "joinEmailLabel": "Емаил (ихтиёрий)",
+  "joinPhoneLabel": "Телефон рақами",
+  "joinSubmit": "Сўров юбориш",
+  "setupOfflineWarning": "Ферма яратилди. Бошқа қурилмалардан қўшилиш учун интернет керак.",
+  "pinSubtitle": "ПИН кодингизни киритинг",
+  "farmPinGateSubtitle": "Фарм созламаларига кириш учун ПИН киритинг",
+  "pinGreeting": "Салом, {name}!",
+  "@pinGreeting": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pinWrongMany": "Жуда кўп уриниш. Егалига хабар юборинг.",
+  "pinWrong": "Нотўғри ПИН. Қайтадан уриниб кўринг.",
+  "pinSetupTitle": "ПИН код ўрнатиш",
+  "pinSetupGreeting": "Салом, {name}!\nКиришни ҳимоя қилиш учун 4 хонали ПИН код ўрнатинг.",
+  "@pinSetupGreeting": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "pinSetupEnter": "ПИН кодни киритинг",
+  "pinSetupConfirm": "ПИН кодни тасдиқланг",
+  "pinSetupSave": "Сақлаш ва кириш",
+  "pinSetupReminder": "ПИН кодни еслаб қолинг — тизимга кириш учун керак бўлади",
+  "pinSetupError4digits": "ПИН 4 та рақамдан иборат бўлиши керак",
+  "pinSetupErrorMatch": "ПИН кодлар мос келмади",
+  "changePinTitle": "ПИН кодни ўзгартириш",
+  "changePinNote": "Аввал жорий ПИН кодингизни, кейин янги ПИН кодингизни киритинг.",
+  "changePinCurrentLabel": "Жорий ПИН код",
+  "changePinNewLabel": "Янги ПИН код",
+  "changePinConfirmLabel": "Янги ПИН кодни тасдиқланг",
+  "changePinSuccess": "✅ ПИН код муваффақиятли ўзгартирилди",
+  "changePinErrorCurrent4": "Жорий ПИН 4 та рақамдан иборат",
+  "changePinError4digits": "Янги ПИН 4 та рақамдан иборат бўлиши керак",
+  "changePinErrorMatch": "Янги ПИН кодлар мос келмади",
+  "changePinErrorSame": "Янги ПИН жорий ПИН билан бир хил бўлиши мумкин емас",
+  "changePinErrorWrong": "Жорий ПИН нотўғри. Қайтадан киритинг.",
+  "changePinErrorTooMany": "Жуда кўп нотўғри уриниш. Иловадан чиқиб қайта киринг.",
+  "homeGreeting": "Салом, {name}! 👋",
+  "@homeGreeting": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "homeLock": "Қулфлаш",
+  "homeOpenCasesAlert": "{count} та очиқ касаллик ҳолати",
+  "@homeOpenCasesAlert": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeDueSoonAlert": "{count} та емлаш муддати яқинлашмоқда",
+  "@homeDueSoonAlert": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeTotalAnimals": "Жами ҳайвон",
+  "homeTodayMilk": "Жами сут",
+  "homeTodayPrefix": "Бугун,",
+  "homeFarmStatusTitle": "Фарм ҳолати",
+  "homeTotalAnimalsLabel": "ЖАМИ ҲАЙВОНЛАР",
+  "homeAllTypesLabel": "Барча турлар",
+  "homeHealthyStatLabel": "СОҒЛОМ",
+  "homeTreatingLabel": "ДАВОЛАНАЁТГАН",
+  "homeWarningLabel": "ОГОҲЛАНТИРИШ",
+  "homeAttentionNeeded": "Еътибор талаб!",
+  "homeTodayMilkLabel": "БУГУНГИ СУТ",
+  "homeAnimalsSection": "Ҳайвонлар",
+  "homeQuickActions": "Тезкор амаллар",
+  "homeNavHome": "Бош",
+  "homeNavAnimals": "Ҳайвонлар",
+  "homeNavHealth": "Касаллик",
+  "homeNavFarm": "Ферма",
+  "homeNavArchive": "Архив",
+  "homeActionHealth": "Касаллик ҳолати",
+  "homeActionHealthSub": "Белгиларни киритинг, АИ ташхис қўяди",
+  "homeActionVacc": "Емлаш",
+  "homeActionVaccSub": "Емлаш қўшинг",
+  "homeActionMilk": "Сут",
+  "homeActionMilkSub": "Сутни рўйхатга олинг",
+  "homeActionWeight": "Вазн",
+  "homeActionWeightSub": "Вазн ўлчови",
+  "homeActionReport": "Ҳисобот",
+  "homeActionReportSub": "Ферма ҳисоботини кўринг",
+  "homeAnimalCount": "{count} та",
+  "@homeAnimalCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "farmTitle": "Ферма",
+  "farmNoData": "Ферма маълумоти топилмади",
+  "farmChangePin": "ПИН кодни ўзгартириш",
+  "farmLock": "Қулфлаш",
+  "farmLogout": "Чиқиш",
+  "farmLogoutConfirm": "Ҳисобдан чиқмоқчимисиз?",
+  "farmOwnerLabel": "Егаси",
+  "farmEmailLabel": "Емаил",
+  "farmYouLabel": "Сиз",
+  "farmRoleLabel": "Рол",
+  "farmCodeCopied": "Фарм коди нусхаланди",
+  "farmEditTooltip": "Таҳрирлаш",
+  "farmSectionManagement": "БОШҚАРУВ",
+  "farmSectionSecurityLang": "ХАВФСИЗЛИК ВА ТИЛ",
+  "farmSectionExport": "ЕКСПОРТ ВА ХИЗМАТЛАР",
+  "farmEditSubtitle": "Номи, манзили ва тури",
+  "farmExcelExportTitle": "Ехcел ҳисобот",
+  "farmExcelExportSubtitle": "Ферма ҳисоботини юклаб олинг",
+  "farmVersionFooter": "АгриВет в2.4.0 · Буилд 2030.А1",
+  "farmEditSheetTitle": "Ферма маълумотлари",
+  "farmNameLabel": "Ферма номи",
+  "farmLocationLabel": "Жойлашув",
+  "farmExcelGenerating": "Ҳисобот тайёрланмоқда...",
+  "farmExcelError": "Ҳисоботни юклаб олишда хатолик юз берди",
+  "farmLanguage": "Тил",
+  "farmLanguageUz": "🇺🇿 O'zbek",
+  "farmLanguageUzCyrl": "🇺🇿 Ўзбек",
+  "farmLanguageRu": "🇷🇺 Русский",
+  "settingsTitle": "Созламалар",
+  "settingsFarmSection": "Ферма маълумоти",
+  "settingsAccountSection": "Сизнинг ҳисобингиз",
+  "settingsSecuritySection": "Хавфсизлик",
+  "settingsFarmName": "Ферма номи",
+  "settingsFarmCode": "Ферма коди",
+  "settingsLocation": "Манзил",
+  "settingsPhone": "Телефон",
+  "settingsLogoutStep2Title": "Ишончингиз комилми?",
+  "settingsLogoutStep2Body": "Тизимдан чиқиб кетасиз. Қайта кириш учун ПИН код керак бўлади.",
+  "settingsLogoutFinal": "Ҳа, чиқиш",
+  "animalsAllTitle": "🐾 Барча ҳайвонлар",
+  "animalsSearch": "Қидириш (исм, қулоқ рақами...)",
+  "animalsAdd": "Ҳайвон қўшиш",
+  "animalsEmpty": "Ҳайвон йўқ",
+  "animalsEmptySpecies": "{species} йўқ",
+  "@animalsEmptySpecies": {
+    "placeholders": {
+      "species": {
+        "type": "String"
+      }
+    }
+  },
+  "animalsAddNew": "Янги ҳайвон қўшинг",
+  "archiveTitle": "Архив",
+  "archiveSubtitle": "Сотилган ва ўлган ҳайвонлар тарихи",
+  "archiveFilterAll": "Ҳаммаси",
+  "archiveFilterSold": "Сотилган",
+  "archiveFilterDied": "Ўлган",
+  "archiveEmptyTitle": "Архив бўш",
+  "archiveEmptyBody": "Ўлган ёки сотилган ҳайвонлар бу ерда кўринади",
+  "archiveDateLabel": "Сана:",
+  "archiveReasonLabel": "Сабаб:",
+  "archiveDetailsBtn": "Тафсилотлар",
+  "addAnimalTitle": "Ҳайвон қўшиш",
+  "addAnimalSpeciesSection": "Тур",
+  "addAnimalBasicSection": "Асосий маълумот",
+  "addAnimalEarTag": "Қулоқ рақами *",
+  "addAnimalEarTagRequired": "Қулоқ рақамини киритинг",
+  "addAnimalName": "Номи (ихтиёрий)",
+  "addAnimalSex": "Жинс",
+  "addAnimalSexMale": "♂ Еркак",
+  "addAnimalSexFemale": "♀ Урдона",
+  "addAnimalSexUnknown": "Номаълум",
+  "addAnimalDob": "Туғилган сана",
+  "addAnimalDetailsSection": "Қўшимча маълумот",
+  "addAnimalBreed": "Зоти",
+  "addAnimalColor": "Ранги",
+  "addAnimalOrigin": "Келиб чиқиши (туман, вилоят)",
+  "addAnimalParentsSection": "Ота-она (ихтиёрий)",
+  "addAnimalMother": "Онасининг қулоқ рақами",
+  "addAnimalFather": "Отасининг қулоқ рақами",
+  "healthTitle": "🏥 Касаллик ҳолатлари",
+  "healthOpen": "Очиқ",
+  "healthSevere": "Жиддий",
+  "healthClosed": "Ёпиқ",
+  "healthEmpty": "Касаллик ҳолати йўқ 🎉",
+  "healthAddBtn": "Ҳолат қўшиш",
+  "healthAddTitle": "Касаллик ҳолати қўшиш",
+  "healthAnimalHint": "Ҳайвон танланг",
+  "healthAnimalLabel": "Ҳайвон",
+  "healthAnimalRequired": "Ҳайвон танланг",
+  "healthSymptomsLabel": "Белгилар",
+  "healthSymptomsRequired": "Белгиларни киритинг",
+  "healthSeverityLabel": "Жиддийлик",
+  "healthClose": "Ёпиш",
+  "healthMarkHealing": "Даволанмоқда деб белгилаш",
+  "healthViewDetails": "Батафсил кўриш",
+  "healthAiLabel": "🤖 АИ ташхиси:",
+  "healthConfidence": "Ишонч: {pct}%",
+  "@healthConfidence": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "healthAssignedSnack": "✅ {earTag} ҳайвонига бириктирилди",
+  "@healthAssignedSnack": {
+    "placeholders": {
+      "earTag": {
+        "type": "String"
+      }
+    }
+  },
+  "healthMarkedHealingSnack": "Даволанмоқда деб белгиланди",
+  "healthStatOpenLabel": "ОЧИҚ ҲОЛАТЛАР",
+  "healthStatActive": "фаол",
+  "healthStatCriticalLabel": "КРИТИК",
+  "healthStatUrgent": "шошилинч",
+  "healthJournalTitle": "Соғлиқ журнали",
+  "healthFilterAll": "Ҳаммаси",
+  "healthFilterCritical": "Критик",
+  "healthCloseSheetTitle": "Касаллик ҳолатини ёпиш",
+  "healthResultLabel": "Натижа",
+  "healthOutcomeHealed": "Тузалди",
+  "healthOutcomeWorsened": "Ёмонлашди",
+  "healthOutcomeDied": "Ўлди",
+  "healthRecoveryDaysLabel": "Тикланиш кунлари (ихтиёрий)",
+  "healthVetConfirmedLabel": "Ветеринар тасдиқлади",
+  "healthCaseClosedSnack": "Ҳолат ёпилди",
+  "healthSaveAndClose": "Сақлаш ва ёпиш",
+  "healthCaseDeleteBody": "Бу касаллик ёзувини ўчирмоқчимисиз?",
+  "healthCaseSavedSnack": "Касаллик ёзуви сақланди",
+  "healthUnassignedLabel": "Ҳайвон тайинланмаган",
+  "healthSymptomsSectionLabel": "АЛОМАТЛАР",
+  "healthAiDiagnosisLabel": "СОНЯ АИ ТАШХИСИ",
+  "healthConfidencePercent": "{pct}% ИШОНЧ",
+  "@healthConfidencePercent": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "healthClosedSummary": "Ушбу ҳолат муваффақиятли якунланган. Охирги кўрик: {date}.",
+  "@healthClosedSummary": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "healthAssignHint": "Ҳайвонга бириктириш",
+  "animalNotFoundTitle": "Ҳайвон топилмади",
+  "animalNotFoundBody": "Бу ҳайвон топилмади",
+  "animalTabInfo": "Маълумот",
+  "animalTabHealth": "Касаллик",
+  "animalTabVacc": "Емлаш",
+  "animalTabWeight": "Вазн",
+  "animalMenuHealth": "🏥 Касаллик қўшиш",
+  "animalMenuVacc": "💉 Емлаш қўшиш",
+  "animalMenuWeight": "⚖️ Вазн қўшиш",
+  "animalMenuSold": "✅ Сотилди",
+  "animalMenuDead": "💀 Ўлди",
+  "animalMenuDelete": "🗑️ Ўчириш",
+  "animalFabHealth": "Касаллик",
+  "animalFabVacc": "Емлаш",
+  "animalFabWeight": "Вазн",
+  "animalConfirmSold": "Сотилди деб белгилансинми?",
+  "animalConfirmDead": "Ўлди деб белгилансинми?",
+  "animalConfirmDelete": "{name} ўчирилсинми?",
+  "@animalConfirmDelete": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "animalInfoSpecies": "Тур",
+  "animalInfoBreed": "Зот",
+  "animalInfoSex": "Жинс",
+  "animalInfoAge": "Ёши",
+  "animalInfoAgeValue": "{count} ёш",
+  "@animalInfoAgeValue": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "animalInfoColor": "Ранг",
+  "animalInfoOrigin": "Келиб чиқиши",
+  "animalInfoMother": "Онаси",
+  "animalInfoFather": "Отаси",
+  "animalInfoPregnancy": "Ҳомиладорлик",
+  "animalPregnant": "🤰 Ҳомиладор ({date})",
+  "@animalPregnant": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "animalCalved": "✅ Бола туғилди",
+  "animalHealthEmpty": "Касаллик ҳолати йўқ",
+  "animalVaccEmpty": "Емлаш тарихи йўқ",
+  "animalWeightEmpty": "Вазн ўлчови йўқ",
+  "animalVaccDate": "Сана: {date}",
+  "@animalVaccDate": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "animalVaccNextLabel": "Кейинги:",
+  "animalHealthSymptomsLabel": "Белгилар:",
+  "animalHealthAiLabel": "АИ ташхиси:",
+  "animalHealthConfidence": "Ишонч: {pct}%",
+  "@animalHealthConfidence": {
+    "placeholders": {
+      "pct": {
+        "type": "int"
+      }
+    }
+  },
+  "animalMenuHealthy": "✅ Соғлом қилиш",
+  "animalDeathReasonLabel": "Ўлим сабаби",
+  "animalDeathReasonRequired": "Сабаб киритиш шарт",
+  "animalSoldReasonLabel": "Изоҳ (ихтиёрий)",
+  "animalEditSheetTitle": "Таҳрирлаш",
+  "animalNameLabel": "Исм",
+  "animalBreedFieldLabel": "Зоти",
+  "animalColorFieldLabel": "Ранги",
+  "animalMotherFieldLabel": "Онанинг қулоқ рақами",
+  "animalFatherFieldLabel": "Отанинг қулоқ рақами",
+  "animalPregnancyStatusTitle": "Ҳомиладорлик ҳолати",
+  "animalPregnancyNone": "Йўқ",
+  "animalPregnancyPregnant": "Ҳомиладор",
+  "animalPregnancyUnknown": "Текширилмаган",
+  "animalPregnancyMonthLabel": "Ҳомиладорлик ойи:",
+  "animalPregnantWithMonth": "{month} ой ҳомиладор 🤰",
+  "@animalPregnantWithMonth": {
+    "placeholders": {
+      "month": {
+        "type": "int"
+      }
+    }
+  },
+  "animalPregnantGeneric": "Ҳомиладор 🤰",
+  "animalAgeYearsMonths": "{years} йил {months} ой",
+  "@animalAgeYearsMonths": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      },
+      "months": {
+        "type": "int"
+      }
+    }
+  },
+  "animalAgeYears": "{years} йил",
+  "@animalAgeYears": {
+    "placeholders": {
+      "years": {
+        "type": "int"
+      }
+    }
+  },
+  "animalAgeMonths": "{months} ой",
+  "@animalAgeMonths": {
+    "placeholders": {
+      "months": {
+        "type": "int"
+      }
+    }
+  },
+  "animalStatusPickerTitle": "Ҳолатни ўзгартириш",
+  "milkTitle": "🥛 Сут",
+  "milkTodayLabel": "Бугунги сут",
+  "milkMorning": "🌅 Ерталаб",
+  "milkEvening": "🌙 Кечқурун",
+  "milkRecent": "Сўнгги ёзувлар",
+  "milkEmpty": "Сут ёзуви йўқ",
+  "milkAmountLabel": "Миқдор (литр)",
+  "milkMorningTitle": "🌅 Ерталаб сут",
+  "milkEveningTitle": "🌙 Кечқурун сут",
+  "milkHeroLabel": "СУТ ЁЗУВИ",
+  "milkHeroTitle": "Бугунги жами сут",
+  "milkLitersUnit": "Литр",
+  "milkYesterday": "Кеча: {liters} Л",
+  "@milkYesterday": {
+    "placeholders": {
+      "liters": {
+        "type": "String"
+      }
+    }
+  },
+  "milkDuplicateWarning": "Бугун 2 маҳал сут аллақачон қўшилган. Яна сут қўшмоқчимисиз?",
+  "milkMorningEntry": "Ерталабки сут",
+  "milkEveningEntry": "Кечқурунги сут",
+  "milkAnalysisLabel": "ТАҲЛИЛ",
+  "milkTrendRising": "Сўнгги 3 кунда сут унумдорлиги барқарор ўсиб бормоқда. Озуқа таркибини ҳозирги ҳолатда сақлаб қолиш тавсия етилади.",
+  "milkTrendFalling": "Сўнгги 3 кунда сут унумдорлиги пасаймоқда. Озуқа ва сув таъминотини текшириб кўринг.",
+  "milkTrendStable": "Сўнгги 3 кунлик ўртача сут ҳажми {avg} литр. Барқарор ҳолат кузатилмоқда.",
+  "@milkTrendStable": {
+    "placeholders": {
+      "avg": {
+        "type": "String"
+      }
+    }
+  },
+  "vaccTitle": "💉 Емлаш",
+  "vaccDueSoon": "⚠️ Яқинлашган емлашлар ({count})",
+  "@vaccDueSoon": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "vaccAll": "Барча емлашлар ({count})",
+  "@vaccAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "vaccEmpty": "Емлаш ёзуви йўқ",
+  "vaccAddBtn": "Емлаш қўшиш",
+  "vaccAddTitle": "Емлаш қўшиш",
+  "vaccAnimalHint": "Ҳайвон танланг",
+  "vaccAnimalLabel": "Ҳайвон",
+  "vaccAnimalRequired": "Ҳайвон танланг",
+  "vaccNameLabel": "Ваксина номи",
+  "vaccNextDueBtn": "Кейингиси",
+  "vaccDateLabel": "Сана: {date}",
+  "@vaccDateLabel": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "vaccNextLabel": "Кейинги:",
+  "vaccSubtitle": "Чорва моллари соғлиғини назорат қилиш ва бошқариш",
+  "vaccUpcoming": "Яқинлашаётган\nемлашлар",
+  "vaccUrgentBadge": "{count} ТА\nШОШИЛИНЧ",
+  "@vaccUrgentBadge": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "vaccAllRecords": "Барча ёзувлар",
+  "vaccDueOverdue": "Муддати ўтган",
+  "vaccDueToday": "Бугун",
+  "vaccDueTomorrow": "Ертага",
+  "vaccDueInDays": "{days} кун қолди",
+  "@vaccDueInDays": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "vaccVaccineLabel": "ВАКСИНА",
+  "vaccDueDateLabel": "Муддат: {badge}",
+  "@vaccDueDateLabel": {
+    "placeholders": {
+      "badge": {
+        "type": "String"
+      }
+    }
+  },
+  "vaccStatusDone": "БАЖАРИЛГАН",
+  "vaccStatusPlanned": "РЕЖАДА",
+  "vaccSavedSnack": "Емлаш ёзуви сақланди",
+  "weightTitle": "⚖️ Вазн",
+  "weightEmpty": "Вазн ўлчови йўқ",
+  "weightAddBtn": "Вазн қўшиш",
+  "weightAddTitle": "Вазн қўшиш",
+  "weightAnimalHint": "Ҳайвон танланг",
+  "weightAnimalLabel": "Ҳайвон",
+  "weightAnimalRequired": "Ҳайвон танланг",
+  "weightLabel": "Вазн",
+  "weightWeeklyAvg": "ҲАФТАЛИК ЎРТАЧА",
+  "weightChartTitle": "Вазн графиги",
+  "weightChartSubtitle": "Охирги 6 ой",
+  "weightRecentRecords": "Сўнгги қайдлар",
+  "weightSavedSnack": "Вазн ёзуви сақланди",
+  "weightMonthJan": "Ян",
+  "weightMonthFeb": "Фев",
+  "weightMonthMar": "Мар",
+  "weightMonthApr": "Апр",
+  "weightMonthMay": "Май",
+  "weightMonthJun": "Июн",
+  "weightMonthJul": "Июл",
+  "weightMonthAug": "Авг",
+  "weightMonthSep": "Сен",
+  "weightMonthOct": "Окт",
+  "weightMonthNov": "Ной",
+  "weightMonthDec": "Дек",
+  "reportTitle": "📊 Ҳисобот",
+  "report7Days": "7 кун",
+  "report30Days": "30 кун",
+  "report1Year": "1 йил",
+  "reportOverview": "Умумий кўрсаткичлар ({days} кун)",
+  "@reportOverview": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "reportTotalAnimals": "Жами ҳайвон",
+  "reportHealthy": "Соғлом",
+  "reportTreatment": "Даволанмоқда",
+  "reportCritical": "Критик",
+  "reportTeam": "Жамоат аъзолари",
+  "reportBirths": "Туғилишлар",
+  "reportVaccDue": "Яқин емлашлар",
+  "reportSpeciesBreakdown": "Тур бўйича тақсимот",
+  "reportAnimalStatus": "Ҳайвон ҳолати",
+  "reportHealthStats": "Касаллик ҳолатлари",
+  "reportOpenCases": "Очиқ ҳолатлар",
+  "reportClosedCases": "Ёпиқ ҳолатлар",
+  "reportMilkStats": "Сут ишлаб чиқариш",
+  "reportTotalMilk": "Жами сут ({days} кун)",
+  "@reportTotalMilk": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "reportAvgMilk": "Ўртача кунлик",
+  "reportAnalyticsLabel": "ТАҲЛИЛИЙ МАъЛУМОТЛАР",
+  "reportTotalLivestockLabel": "ЖАМИ ЧОРВА",
+  "reportNoData": "Маълумот йўқ",
+  "reportYoungAnimalsTitle": "Ёш ҳайвонлар (2 ёшгача)",
+  "reportNoYoungAnimals": "Ёш ҳайвонлар йўқ",
+  "reportBySpeciesLabel": "Турлар бўйича",
+  "reportNoAnimals": "Ҳайвон йўқ",
+  "reportDayMon": "Ду",
+  "reportDayTue": "Се",
+  "reportDayWed": "Ч",
+  "reportDayThu": "Па",
+  "reportDayFri": "Жу",
+  "reportDaySat": "Ш",
+  "reportDaySun": "Я",
+  "reportHealthBySpecies": "Тур бўйича соғлик ҳолати",
+  "reportLegendHealthy": "Соғлом",
+  "reportLegendTreatment": "Даволанмоқда",
+  "reportLegendObserved": "Кузатувда",
+  "reportLegendCritical": "Критик",
+  "menuLanguage": "Тил",
+  "menuLangUz": "Ўзбекча",
+  "menuLangRu": "Русский",
+  "menuEditProfile": "Ферма маълумотлари",
+  "menuPersonalInfo": "Шахсий маълумотлар",
+  "menuLogout": "Чиқиш",
+  "menuLogoutConfirm": "Ҳисобдан чиқмоқчимисиз?",
+  "menuChangeAccount": "Аккаунтни алмаштириш",
+  "menuChangeAccountConfirm": "Жорий аккаунтдан чиқиб, бошқа аккаунт билан кирасизми?",
+  "farmPickerTitle": "Фермани танланг",
+  "farmPickerSubtitle": "Аккаунтингизга уланган фермалар",
+  "farmPickerNewFarm": "Янги ферма қўшиш",
+  "bulkVaccTitle": "Оммавий емлаш",
+  "bulkVaccSelectAll": "Барчасини танлаш",
+  "bulkVaccDeselectAll": "Танловни бекор қилиш",
+  "bulkVaccInvert": "Тескари танлаш",
+  "bulkVaccSelected": "{count} та танланди",
+  "@bulkVaccSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bulkVaccSaveBtn": "Емлаш қўшиш",
+  "bulkVaccFormTitle": "Емлаш маълумотлари",
+  "bulkVaccVaccineName": "Ваксина номи",
+  "bulkVaccDate": "Емлаш санаси",
+  "bulkVaccNextDue": "Кейинги сана (ихтиёрий)",
+  "bulkVaccSuccess": "{count} та ҳайвон емлантирилди",
+  "@bulkVaccSuccess": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "bulkVaccNoneSelected": "Камида 1 та ҳайвон танланг",
+  "aiAssistantTitle": "Асомиддин — АИ Ветеринар",
+  "aiAssistantSubtitle": "15 йил тажрибали Фарғона водийси ветеринари",
+  "aiInputHint": "Ҳайвон ҳақида ёзинг...",
+  "aiRecording": "Ёзилмоқда... (қўлни олинг)",
+  "aiEmergency": "ФАВҚУЛОДДА ҲОЛАТ",
+  "aiFirstAid": "Дарҳол чоралар:",
+  "aiFollowUp": "{days} кундан сўнг текшириш",
+  "@aiFollowUp": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "aiListenBtn": "Ешитиш",
+  "aiStopBtn": "Тўхтатиш",
+  "aiMicPermission": "Микрофон рухсати керак",
+  "aiCallVet": "Ветеринар чақириш",
+  "aiOnline": "Онлине",
+  "aiExperience": "АИ Ветеринар · 15 йил тажриба",
+  "aiWelcomeMessage": "Салом! Мен Соня — сизнинг АИ ветеринар ёрдамчингизман. Ҳайвон ҳолати, касаллик белгилари, емлаш ёки вазн ҳақида менга хабар беринг. Овоз ёки матн билан мурожаат қилинг.",
+  "aiServerError": "⚠️ Сервер билан боғланиб бўлмади, қайта уриниб кўринг",
+  "aiPhotoSavedSnack": "✅ Сақланди — Саломатлик бўлимида ҳайвонга бириктиринг",
+  "aiSavedSnack": "Сақланди",
+  "aiGenericError": "Хатолик юз берди. Қайта уриниб кўринг.",
+  "aiSttFailedSnack": "🎤 Овоз танилмади, қайта уриниб кўринг",
+  "aiCameraOption": "📷 Камера",
+  "aiCameraSubtitle": "Янги расм олиш",
+  "aiGalleryOption": "🖼️ Галерея",
+  "aiGallerySubtitle": "Телефондан танлаш",
+  "aiDeleteConversation": "Суҳбатни ўчириш",
+  "aiVetContactLabel": "Ветеринар: {name}",
+  "@aiVetContactLabel": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "aiCallVetNow": "Дарҳол ветеринар чақиринг!",
+  "aiPhotoAddedHint": "Расм қўшилди. Матн киритинг ва юборинг.",
+  "aiTranscribing": "🎤 Таҳлил қилинмоқда...",
+  "aiSwipeToLock": "↑ юқорига → қулфлаш"
+}

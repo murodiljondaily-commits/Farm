@@ -90,9 +90,9 @@ class _FarmPinGateScreenState extends State<FarmPinGateScreen> {
                           fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Farm sozlamalariga kirish uchun PIN kiriting',
-                      style: TextStyle(color: Colors.white54, fontSize: 15),
+                    Text(
+                      l10n.farmPinGateSubtitle,
+                      style: const TextStyle(color: Colors.white54, fontSize: 15),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 36),

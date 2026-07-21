@@ -13,11 +13,28 @@
   "yes": "Да",
   "deleteBtn": "Удалить",
   "closeBtn": "Закрыть",
+  "deleteConfirmTitle": "Подтвердите удаление",
+  "deleteConfirmBody": "Вы хотите удалить эту запись?",
+  "errorWithDetail": "Ошибка: {error}",
+  "@errorWithDetail": {
+    "placeholders": { "error": {"type": "String"} }
+  },
   "openStatus": "Открыт",
   "closedStatus": "Закрыт",
   "enterHint": "Введите",
   "enterNumber": "Введите число",
   "fieldRequired": "Заполните поле",
+
+  "proposedActionDone": "Выполнено",
+  "proposedActionCancelled": "Отменено",
+  "proposedActionDefaultSummary": "Подтвердите действие",
+  "proposedActionNeedsConfirm": "Требуется подтверждение",
+  "proposedActionAffectedCount": "{count} животн.",
+  "@proposedActionAffectedCount": {
+    "placeholders": { "count": {"type": "int"} }
+  },
+  "proposedActionCancelBtn": "Отменить",
+  "proposedActionError": "Ошибка — попробуйте снова",
 
   "roleOwner": "Владелец фермы",
   "roleVet": "Ветеринар",
@@ -38,6 +55,7 @@
   "speciesEchkiPlural": "Козы",
   "speciesOtPlural": "Лошади",
   "speciesAll": "Все",
+  "speciesYoung": "Молодняк",
 
   "statusSoglom": "Здоров",
   "statusDavolanmoqda": "На лечении",
@@ -64,6 +82,8 @@
   "phoneNumberHint": "XX XXX XX XX",
   "phoneSendCode": "Отправить SMS код",
   "phoneInvalidNumber": "Введите корректный номер телефона",
+  "phoneFieldEmpty": "Введите номер телефона",
+  "phoneFieldWrongLength": "Введите ровно 9 цифр",
   "phoneTooManyRequests": "Слишком много попыток. Попробуйте позже.",
   "phoneError": "Произошла ошибка. Попробуйте снова.",
   "phoneOtpTitle": "Введите SMS код",
@@ -128,8 +148,10 @@
   "joinEmailLabel": "Email (необязательно)",
   "joinPhoneLabel": "Номер телефона",
   "joinSubmit": "Отправить запрос",
+  "setupOfflineWarning": "Ферма создана. Для подключения с других устройств нужен интернет.",
 
   "pinSubtitle": "Введите PIN-код",
+  "farmPinGateSubtitle": "Введите PIN для доступа к настройкам фермы",
   "pinGreeting": "Привет, {name}!",
   "@pinGreeting": {
     "placeholders": { "name": {"type": "String"} }
@@ -177,12 +199,22 @@
   },
   "homeTotalAnimals": "Всего животных",
   "homeTodayMilk": "Всё молоко",
+  "homeTodayPrefix": "Сегодня,",
+  "homeFarmStatusTitle": "Статус фермы",
+  "homeTotalAnimalsLabel": "ВСЕГО ЖИВОТНЫХ",
+  "homeAllTypesLabel": "Все виды",
+  "homeHealthyStatLabel": "ЗДОРОВЫЕ",
+  "homeTreatingLabel": "НА ЛЕЧЕНИИ",
+  "homeWarningLabel": "ПРЕДУПРЕЖДЕНИЕ",
+  "homeAttentionNeeded": "Требует внимания!",
+  "homeTodayMilkLabel": "СЕГОДНЯШНЕЕ МОЛОКО",
   "homeAnimalsSection": "Животные",
   "homeQuickActions": "Быстрые действия",
   "homeNavHome": "Главная",
   "homeNavAnimals": "Животные",
   "homeNavHealth": "Здоровье",
   "homeNavFarm": "Ферма",
+  "homeNavArchive": "Архив",
   "homeActionHealth": "Случай болезни",
   "homeActionHealthSub": "Введите симптомы, ИИ поставит диагноз",
   "homeActionVacc": "Вакцинация",
@@ -200,8 +232,6 @@
 
   "farmTitle": "Ферма",
   "farmNoData": "Данные фермы не найдены",
-  "farmSheets": "Google Таблицы",
-  "farmSheetsSubtitle": "Просмотр данных фермы",
   "farmChangePin": "Изменить PIN-код",
   "farmLock": "Заблокировать",
   "farmLogout": "Выйти",
@@ -211,8 +241,22 @@
   "farmYouLabel": "Вы",
   "farmRoleLabel": "Роль",
   "farmCodeCopied": "Код фермы скопирован",
+  "farmEditTooltip": "Редактировать",
+  "farmSectionManagement": "УПРАВЛЕНИЕ",
+  "farmSectionSecurityLang": "БЕЗОПАСНОСТЬ И ЯЗЫК",
+  "farmSectionExport": "ЭКСПОРТ И СЕРВИСЫ",
+  "farmEditSubtitle": "Название, адрес и тип",
+  "farmExcelExportTitle": "Excel-отчёт",
+  "farmExcelExportSubtitle": "Скачать отчёт по ферме",
+  "farmVersionFooter": "AgriVet v2.4.0 · Build 2030.A1",
+  "farmEditSheetTitle": "Данные фермы",
+  "farmNameLabel": "Название фермы",
+  "farmLocationLabel": "Местоположение",
+  "farmExcelGenerating": "Формируется отчёт...",
+  "farmExcelError": "Ошибка при скачивании отчёта",
   "farmLanguage": "Язык",
   "farmLanguageUz": "🇺🇿 O'zbek",
+  "farmLanguageUzCyrl": "🇺🇿 Ўзбек",
   "farmLanguageRu": "🇷🇺 Русский",
 
   "settingsTitle": "Настройки",
@@ -236,6 +280,17 @@
     "placeholders": { "species": {"type": "String"} }
   },
   "animalsAddNew": "Добавьте новое животное",
+
+  "archiveTitle": "Архив",
+  "archiveSubtitle": "История проданных и погибших животных",
+  "archiveFilterAll": "Все",
+  "archiveFilterSold": "Проданные",
+  "archiveFilterDied": "Погибшие",
+  "archiveEmptyTitle": "Архив пуст",
+  "archiveEmptyBody": "Проданные или погибшие животные появятся здесь",
+  "archiveDateLabel": "Дата:",
+  "archiveReasonLabel": "Причина:",
+  "archiveDetailsBtn": "Подробности",
 
   "addAnimalTitle": "Добавить животное",
   "addAnimalSpeciesSection": "Вид",
@@ -270,11 +325,48 @@
   "healthSymptomsRequired": "Введите симптомы",
   "healthSeverityLabel": "Тяжесть",
   "healthClose": "Закрыть",
+  "healthMarkHealing": "Отметить как «на лечении»",
+  "healthViewDetails": "Подробнее",
   "healthAiLabel": "🤖 Диагноз ИИ:",
   "healthConfidence": "Уверенность: {pct}%",
   "@healthConfidence": {
     "placeholders": { "pct": {"type": "int"} }
   },
+  "healthAssignedSnack": "✅ Привязано к {earTag}",
+  "@healthAssignedSnack": {
+    "placeholders": { "earTag": {"type": "String"} }
+  },
+  "healthMarkedHealingSnack": "Отмечено как «на лечении»",
+  "healthStatOpenLabel": "ОТКРЫТЫЕ СЛУЧАИ",
+  "healthStatActive": "активных",
+  "healthStatCriticalLabel": "КРИТИЧЕСКИЕ",
+  "healthStatUrgent": "срочно",
+  "healthJournalTitle": "Журнал здоровья",
+  "healthFilterAll": "Все",
+  "healthFilterCritical": "Критические",
+  "healthCloseSheetTitle": "Закрыть случай болезни",
+  "healthResultLabel": "Результат",
+  "healthOutcomeHealed": "Выздоровел",
+  "healthOutcomeWorsened": "Ухудшилось",
+  "healthOutcomeDied": "Погиб",
+  "healthRecoveryDaysLabel": "Дней на выздоровление (необязательно)",
+  "healthVetConfirmedLabel": "Подтверждено ветеринаром",
+  "healthCaseClosedSnack": "Случай закрыт",
+  "healthSaveAndClose": "Сохранить и закрыть",
+  "healthCaseDeleteBody": "Вы хотите удалить эту запись о болезни?",
+  "healthCaseSavedSnack": "Запись о болезни сохранена",
+  "healthUnassignedLabel": "Животное не привязано",
+  "healthSymptomsSectionLabel": "СИМПТОМЫ",
+  "healthAiDiagnosisLabel": "ДИАГНОЗ ИИ SONYA",
+  "healthConfidencePercent": "{pct}% УВЕРЕННОСТЬ",
+  "@healthConfidencePercent": {
+    "placeholders": { "pct": {"type": "int"} }
+  },
+  "healthClosedSummary": "Этот случай успешно завершён. Последний осмотр: {date}.",
+  "@healthClosedSummary": {
+    "placeholders": { "date": {"type": "String"} }
+  },
+  "healthAssignHint": "Привязать к животному",
 
   "animalNotFoundTitle": "Животное не найдено",
   "animalNotFoundBody": "Это животное не найдено",
@@ -329,6 +421,39 @@
   "@animalHealthConfidence": {
     "placeholders": { "pct": {"type": "int"} }
   },
+  "animalMenuHealthy": "✅ Сделать здоровым",
+  "animalDeathReasonLabel": "Причина смерти",
+  "animalDeathReasonRequired": "Укажите причину",
+  "animalSoldReasonLabel": "Комментарий (необязательно)",
+  "animalEditSheetTitle": "Редактировать",
+  "animalNameLabel": "Имя",
+  "animalBreedFieldLabel": "Порода",
+  "animalColorFieldLabel": "Цвет",
+  "animalMotherFieldLabel": "Ушная бирка матери",
+  "animalFatherFieldLabel": "Ушная бирка отца",
+  "animalPregnancyStatusTitle": "Статус беременности",
+  "animalPregnancyNone": "Нет",
+  "animalPregnancyPregnant": "Беременна",
+  "animalPregnancyUnknown": "Не проверено",
+  "animalPregnancyMonthLabel": "Месяц беременности:",
+  "animalPregnantWithMonth": "{month} мес. беременности 🤰",
+  "@animalPregnantWithMonth": {
+    "placeholders": { "month": {"type": "int"} }
+  },
+  "animalPregnantGeneric": "Беременна 🤰",
+  "animalAgeYearsMonths": "{years} л. {months} мес.",
+  "@animalAgeYearsMonths": {
+    "placeholders": { "years": {"type": "int"}, "months": {"type": "int"} }
+  },
+  "animalAgeYears": "{years} лет",
+  "@animalAgeYears": {
+    "placeholders": { "years": {"type": "int"} }
+  },
+  "animalAgeMonths": "{months} мес.",
+  "@animalAgeMonths": {
+    "placeholders": { "months": {"type": "int"} }
+  },
+  "animalStatusPickerTitle": "Изменить статус",
 
   "milkTitle": "🥛 Молоко",
   "milkTodayLabel": "Молоко сегодня",
@@ -339,6 +464,23 @@
   "milkAmountLabel": "Количество (литры)",
   "milkMorningTitle": "🌅 Утренний надой",
   "milkEveningTitle": "🌙 Вечерний надой",
+  "milkHeroLabel": "УЧЁТ МОЛОКА",
+  "milkHeroTitle": "Надой за сегодня",
+  "milkLitersUnit": "Литр",
+  "milkYesterday": "Вчера: {liters} л",
+  "@milkYesterday": {
+    "placeholders": { "liters": {"type": "String"} }
+  },
+  "milkDuplicateWarning": "Сегодня уже добавлено 2 записи о молоке. Добавить ещё?",
+  "milkMorningEntry": "Утренний надой",
+  "milkEveningEntry": "Вечерний надой",
+  "milkAnalysisLabel": "АНАЛИЗ",
+  "milkTrendRising": "За последние 3 дня надой стабильно растёт. Рекомендуется сохранить текущий рацион кормления.",
+  "milkTrendFalling": "За последние 3 дня надой снижается. Проверьте рацион и водоснабжение.",
+  "milkTrendStable": "Средний надой за последние 3 дня: {avg} л. Наблюдается стабильное состояние.",
+  "@milkTrendStable": {
+    "placeholders": { "avg": {"type": "String"} }
+  },
 
   "vaccTitle": "💉 Вакцинация",
   "vaccDueSoon": "⚠️ Предстоящие вакцинации ({count})",
@@ -362,6 +504,28 @@
     "placeholders": { "date": {"type": "String"} }
   },
   "vaccNextLabel": "Следующая:",
+  "vaccSubtitle": "Контроль и управление здоровьем скота",
+  "vaccUpcoming": "Предстоящие\nвакцинации",
+  "vaccUrgentBadge": "{count} СРОЧНО",
+  "@vaccUrgentBadge": {
+    "placeholders": { "count": {"type": "int"} }
+  },
+  "vaccAllRecords": "Все записи",
+  "vaccDueOverdue": "Просрочено",
+  "vaccDueToday": "Сегодня",
+  "vaccDueTomorrow": "Завтра",
+  "vaccDueInDays": "Осталось {days} дн.",
+  "@vaccDueInDays": {
+    "placeholders": { "days": {"type": "int"} }
+  },
+  "vaccVaccineLabel": "ВАКЦИНА",
+  "vaccDueDateLabel": "Срок: {badge}",
+  "@vaccDueDateLabel": {
+    "placeholders": { "badge": {"type": "String"} }
+  },
+  "vaccStatusDone": "ВЫПОЛНЕНО",
+  "vaccStatusPlanned": "ЗАПЛАНИРОВАНО",
+  "vaccSavedSnack": "Запись о вакцинации сохранена",
 
   "weightTitle": "⚖️ Вес",
   "weightEmpty": "Данных о весе нет",
@@ -371,6 +535,15 @@
   "weightAnimalLabel": "Животное",
   "weightAnimalRequired": "Выберите животное",
   "weightLabel": "Вес",
+  "weightWeeklyAvg": "СРЕДНЕЕ ЗА НЕДЕЛЮ",
+  "weightChartTitle": "График веса",
+  "weightChartSubtitle": "Последние 6 месяцев",
+  "weightRecentRecords": "Последние записи",
+  "weightSavedSnack": "Запись о весе сохранена",
+  "weightMonthJan": "Янв", "weightMonthFeb": "Фев", "weightMonthMar": "Мар",
+  "weightMonthApr": "Апр", "weightMonthMay": "Май", "weightMonthJun": "Июн",
+  "weightMonthJul": "Июл", "weightMonthAug": "Авг", "weightMonthSep": "Сен",
+  "weightMonthOct": "Окт", "weightMonthNov": "Ноя", "weightMonthDec": "Дек",
 
   "reportTitle": "📊 Отчёт",
   "report7Days": "7 дней",
@@ -398,6 +571,16 @@
     "placeholders": { "days": {"type": "int"} }
   },
   "reportAvgMilk": "Среднесуточный",
+  "reportAnalyticsLabel": "АНАЛИТИЧЕСКИЕ ДАННЫЕ",
+  "reportTotalLivestockLabel": "ВСЕГО СКОТА",
+  "reportNoData": "Нет данных",
+  "reportYoungAnimalsTitle": "Молодняк (до 2 лет)",
+  "reportNoYoungAnimals": "Молодняка нет",
+  "reportBySpeciesLabel": "По видам",
+  "reportNoAnimals": "Животных нет",
+  "reportDayMon": "Пн", "reportDayTue": "Вт", "reportDayWed": "Ср",
+  "reportDayThu": "Чт", "reportDayFri": "Пт", "reportDaySat": "Сб",
+  "reportDaySun": "Вс",
   "reportHealthBySpecies": "Здоровье по видам",
   "reportLegendHealthy": "Здоровых",
   "reportLegendTreatment": "На лечении",
@@ -408,6 +591,7 @@
   "menuLangUz": "O'zbekcha",
   "menuLangRu": "Русский",
   "menuEditProfile": "Данные фермы",
+  "menuPersonalInfo": "Личные данные",
   "menuLogout": "Выйти",
   "menuLogoutConfirm": "Выйти из аккаунта?",
   "menuChangeAccount": "Сменить аккаунт",
@@ -451,5 +635,24 @@
   "aiMicPermission": "Нужно разрешение микрофона",
   "aiCallVet": "Вызвать ветеринара",
   "aiOnline": "Онлайн",
-  "aiExperience": "ИИ Ветеринар · 15 лет опыта"
+  "aiExperience": "ИИ Ветеринар · 15 лет опыта",
+  "aiWelcomeMessage": "Ассалому алайкум! Я Соня — ваш ИИ-ветеринар. Расскажите о состоянии животного, симптомах, вакцинации или весе. Пишите текст или говорите голосом.",
+  "aiServerError": "⚠️ Не удалось подключиться к серверу, попробуйте снова",
+  "aiPhotoSavedSnack": "✅ Сохранено — прикрепите к животному в разделе «Здоровье»",
+  "aiSavedSnack": "Сохранено",
+  "aiGenericError": "Произошла ошибка. Попробуйте снова.",
+  "aiSttFailedSnack": "🎤 Голос не распознан, попробуйте снова",
+  "aiCameraOption": "📷 Камера",
+  "aiCameraSubtitle": "Сделать новое фото",
+  "aiGalleryOption": "🖼️ Галерея",
+  "aiGallerySubtitle": "Выбрать с телефона",
+  "aiDeleteConversation": "Удалить беседу",
+  "aiVetContactLabel": "Ветеринар: {name}",
+  "@aiVetContactLabel": {
+    "placeholders": { "name": {"type": "String"} }
+  },
+  "aiCallVetNow": "Немедленно вызовите ветеринара!",
+  "aiPhotoAddedHint": "Фото добавлено. Введите текст и отправьте.",
+  "aiTranscribing": "🎤 Анализ...",
+  "aiSwipeToLock": "↑ вверх → блокировка"
 }

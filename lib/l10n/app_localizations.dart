@@ -95,7 +95,8 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[
     Locale('ru'),
-    Locale('uz')
+    Locale('uz'),
+    Locale.fromSubtags(languageCode: 'uz', scriptCode: 'Cyrl')
   ];
 
   /// No description provided for @errorDefault.
@@ -170,6 +171,24 @@ abstract class AppLocalizations {
   /// **'Yopish'**
   String get closeBtn;
 
+  /// No description provided for @deleteConfirmTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'O\'chirishni tasdiqlang'**
+  String get deleteConfirmTitle;
+
+  /// No description provided for @deleteConfirmBody.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu yozuvni o\'chirmoqchimisiz?'**
+  String get deleteConfirmBody;
+
+  /// No description provided for @errorWithDetail.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xatolik: {error}'**
+  String errorWithDetail(String error);
+
   /// No description provided for @openStatus.
   ///
   /// In uz, this message translates to:
@@ -199,6 +218,48 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Maydonni to\'ldiring'**
   String get fieldRequired;
+
+  /// No description provided for @proposedActionDone.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bajarildi'**
+  String get proposedActionDone;
+
+  /// No description provided for @proposedActionCancelled.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bekor qilindi'**
+  String get proposedActionCancelled;
+
+  /// No description provided for @proposedActionDefaultSummary.
+  ///
+  /// In uz, this message translates to:
+  /// **'Amalni tasdiqlang'**
+  String get proposedActionDefaultSummary;
+
+  /// No description provided for @proposedActionNeedsConfirm.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tasdiqlash kerak'**
+  String get proposedActionNeedsConfirm;
+
+  /// No description provided for @proposedActionAffectedCount.
+  ///
+  /// In uz, this message translates to:
+  /// **'{count} ta hayvon'**
+  String proposedActionAffectedCount(int count);
+
+  /// No description provided for @proposedActionCancelBtn.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bekor qilish'**
+  String get proposedActionCancelBtn;
+
+  /// No description provided for @proposedActionError.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xatolik — qayta urining'**
+  String get proposedActionError;
 
   /// No description provided for @roleOwner.
   ///
@@ -307,6 +368,12 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Barchasi'**
   String get speciesAll;
+
+  /// No description provided for @speciesYoung.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yosh hayvonlar'**
+  String get speciesYoung;
 
   /// No description provided for @statusSoglom.
   ///
@@ -439,6 +506,18 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Telefon raqamni to\'g\'ri kiriting'**
   String get phoneInvalidNumber;
+
+  /// No description provided for @phoneFieldEmpty.
+  ///
+  /// In uz, this message translates to:
+  /// **'Telefon raqamini kiriting'**
+  String get phoneFieldEmpty;
+
+  /// No description provided for @phoneFieldWrongLength.
+  ///
+  /// In uz, this message translates to:
+  /// **'Aynan 9 ta raqam kiriting'**
+  String get phoneFieldWrongLength;
 
   /// No description provided for @phoneTooManyRequests.
   ///
@@ -716,11 +795,23 @@ abstract class AppLocalizations {
   /// **'So\'rov yuborish'**
   String get joinSubmit;
 
+  /// No description provided for @setupOfflineWarning.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ferma yaratildi. Boshqa qurilmalardan qo\'shilish uchun internet kerak.'**
+  String get setupOfflineWarning;
+
   /// No description provided for @pinSubtitle.
   ///
   /// In uz, this message translates to:
   /// **'PIN kodingizni kiriting'**
   String get pinSubtitle;
+
+  /// No description provided for @farmPinGateSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Farm sozlamalariga kirish uchun PIN kiriting'**
+  String get farmPinGateSubtitle;
 
   /// No description provided for @pinGreeting.
   ///
@@ -896,6 +987,60 @@ abstract class AppLocalizations {
   /// **'Jami sut'**
   String get homeTodayMilk;
 
+  /// No description provided for @homeTodayPrefix.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bugun,'**
+  String get homeTodayPrefix;
+
+  /// No description provided for @homeFarmStatusTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Farm holati'**
+  String get homeFarmStatusTitle;
+
+  /// No description provided for @homeTotalAnimalsLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'JAMI HAYVONLAR'**
+  String get homeTotalAnimalsLabel;
+
+  /// No description provided for @homeAllTypesLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Barcha turlar'**
+  String get homeAllTypesLabel;
+
+  /// No description provided for @homeHealthyStatLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'SOG\'LOM'**
+  String get homeHealthyStatLabel;
+
+  /// No description provided for @homeTreatingLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'DAVOLANAYOTGAN'**
+  String get homeTreatingLabel;
+
+  /// No description provided for @homeWarningLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'OGOHLANTIRISH'**
+  String get homeWarningLabel;
+
+  /// No description provided for @homeAttentionNeeded.
+  ///
+  /// In uz, this message translates to:
+  /// **'E\'tibor talab!'**
+  String get homeAttentionNeeded;
+
+  /// No description provided for @homeTodayMilkLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'BUGUNGI SUT'**
+  String get homeTodayMilkLabel;
+
   /// No description provided for @homeAnimalsSection.
   ///
   /// In uz, this message translates to:
@@ -931,6 +1076,12 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Ferma'**
   String get homeNavFarm;
+
+  /// No description provided for @homeNavArchive.
+  ///
+  /// In uz, this message translates to:
+  /// **'Arxiv'**
+  String get homeNavArchive;
 
   /// No description provided for @homeActionHealth.
   ///
@@ -1010,18 +1161,6 @@ abstract class AppLocalizations {
   /// **'Ferma ma\'lumoti topilmadi'**
   String get farmNoData;
 
-  /// No description provided for @farmSheets.
-  ///
-  /// In uz, this message translates to:
-  /// **'Google Sheets'**
-  String get farmSheets;
-
-  /// No description provided for @farmSheetsSubtitle.
-  ///
-  /// In uz, this message translates to:
-  /// **'Ferma ma\'lumotlarini ko\'ring'**
-  String get farmSheetsSubtitle;
-
   /// No description provided for @farmChangePin.
   ///
   /// In uz, this message translates to:
@@ -1076,6 +1215,84 @@ abstract class AppLocalizations {
   /// **'Farm kodi nusxalandi'**
   String get farmCodeCopied;
 
+  /// No description provided for @farmEditTooltip.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tahrirlash'**
+  String get farmEditTooltip;
+
+  /// No description provided for @farmSectionManagement.
+  ///
+  /// In uz, this message translates to:
+  /// **'BOSHQARUV'**
+  String get farmSectionManagement;
+
+  /// No description provided for @farmSectionSecurityLang.
+  ///
+  /// In uz, this message translates to:
+  /// **'XAVFSIZLIK VA TIL'**
+  String get farmSectionSecurityLang;
+
+  /// No description provided for @farmSectionExport.
+  ///
+  /// In uz, this message translates to:
+  /// **'EKSPORT VA XIZMATLAR'**
+  String get farmSectionExport;
+
+  /// No description provided for @farmEditSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Nomi, manzili va turi'**
+  String get farmEditSubtitle;
+
+  /// No description provided for @farmExcelExportTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Excel hisobot'**
+  String get farmExcelExportTitle;
+
+  /// No description provided for @farmExcelExportSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ferma hisobotini yuklab oling'**
+  String get farmExcelExportSubtitle;
+
+  /// No description provided for @farmVersionFooter.
+  ///
+  /// In uz, this message translates to:
+  /// **'AgriVet v2.4.0 · Build 2030.A1'**
+  String get farmVersionFooter;
+
+  /// No description provided for @farmEditSheetTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ferma ma\'lumotlari'**
+  String get farmEditSheetTitle;
+
+  /// No description provided for @farmNameLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ferma nomi'**
+  String get farmNameLabel;
+
+  /// No description provided for @farmLocationLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Joylashuv'**
+  String get farmLocationLabel;
+
+  /// No description provided for @farmExcelGenerating.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hisobot tayyorlanmoqda...'**
+  String get farmExcelGenerating;
+
+  /// No description provided for @farmExcelError.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hisobotni yuklab olishda xatolik yuz berdi'**
+  String get farmExcelError;
+
   /// No description provided for @farmLanguage.
   ///
   /// In uz, this message translates to:
@@ -1087,6 +1304,12 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'🇺🇿 O\'zbek'**
   String get farmLanguageUz;
+
+  /// No description provided for @farmLanguageUzCyrl.
+  ///
+  /// In uz, this message translates to:
+  /// **'🇺🇿 Ўзбек'**
+  String get farmLanguageUzCyrl;
 
   /// No description provided for @farmLanguageRu.
   ///
@@ -1195,6 +1418,66 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Yangi hayvon qo\'shing'**
   String get animalsAddNew;
+
+  /// No description provided for @archiveTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Arxiv'**
+  String get archiveTitle;
+
+  /// No description provided for @archiveSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sotilgan va o\'lgan hayvonlar tarixi'**
+  String get archiveSubtitle;
+
+  /// No description provided for @archiveFilterAll.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hammasi'**
+  String get archiveFilterAll;
+
+  /// No description provided for @archiveFilterSold.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sotilgan'**
+  String get archiveFilterSold;
+
+  /// No description provided for @archiveFilterDied.
+  ///
+  /// In uz, this message translates to:
+  /// **'O\'lgan'**
+  String get archiveFilterDied;
+
+  /// No description provided for @archiveEmptyTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Arxiv bo\'sh'**
+  String get archiveEmptyTitle;
+
+  /// No description provided for @archiveEmptyBody.
+  ///
+  /// In uz, this message translates to:
+  /// **'O\'lgan yoki sotilgan hayvonlar bu yerda ko\'rinadi'**
+  String get archiveEmptyBody;
+
+  /// No description provided for @archiveDateLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sana:'**
+  String get archiveDateLabel;
+
+  /// No description provided for @archiveReasonLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sabab:'**
+  String get archiveReasonLabel;
+
+  /// No description provided for @archiveDetailsBtn.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tafsilotlar'**
+  String get archiveDetailsBtn;
 
   /// No description provided for @addAnimalTitle.
   ///
@@ -1388,6 +1671,18 @@ abstract class AppLocalizations {
   /// **'Yopish'**
   String get healthClose;
 
+  /// No description provided for @healthMarkHealing.
+  ///
+  /// In uz, this message translates to:
+  /// **'Davolanmoqda deb belgilash'**
+  String get healthMarkHealing;
+
+  /// No description provided for @healthViewDetails.
+  ///
+  /// In uz, this message translates to:
+  /// **'Batafsil ko\'rish'**
+  String get healthViewDetails;
+
   /// No description provided for @healthAiLabel.
   ///
   /// In uz, this message translates to:
@@ -1399,6 +1694,162 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Ishonch: {pct}%'**
   String healthConfidence(int pct);
+
+  /// No description provided for @healthAssignedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'✅ {earTag} hayvoniga biriktirildi'**
+  String healthAssignedSnack(String earTag);
+
+  /// No description provided for @healthMarkedHealingSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'Davolanmoqda deb belgilandi'**
+  String get healthMarkedHealingSnack;
+
+  /// No description provided for @healthStatOpenLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'OCHIQ HOLATLAR'**
+  String get healthStatOpenLabel;
+
+  /// No description provided for @healthStatActive.
+  ///
+  /// In uz, this message translates to:
+  /// **'faol'**
+  String get healthStatActive;
+
+  /// No description provided for @healthStatCriticalLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'KRITIK'**
+  String get healthStatCriticalLabel;
+
+  /// No description provided for @healthStatUrgent.
+  ///
+  /// In uz, this message translates to:
+  /// **'shoshilinch'**
+  String get healthStatUrgent;
+
+  /// No description provided for @healthJournalTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sog\'liq jurnali'**
+  String get healthJournalTitle;
+
+  /// No description provided for @healthFilterAll.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hammasi'**
+  String get healthFilterAll;
+
+  /// No description provided for @healthFilterCritical.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kritik'**
+  String get healthFilterCritical;
+
+  /// No description provided for @healthCloseSheetTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kasallik holatini yopish'**
+  String get healthCloseSheetTitle;
+
+  /// No description provided for @healthResultLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Natija'**
+  String get healthResultLabel;
+
+  /// No description provided for @healthOutcomeHealed.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tuzaldi'**
+  String get healthOutcomeHealed;
+
+  /// No description provided for @healthOutcomeWorsened.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yomonlashdi'**
+  String get healthOutcomeWorsened;
+
+  /// No description provided for @healthOutcomeDied.
+  ///
+  /// In uz, this message translates to:
+  /// **'O\'ldi'**
+  String get healthOutcomeDied;
+
+  /// No description provided for @healthRecoveryDaysLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tiklanish kunlari (ixtiyoriy)'**
+  String get healthRecoveryDaysLabel;
+
+  /// No description provided for @healthVetConfirmedLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Veterinar tasdiqladi'**
+  String get healthVetConfirmedLabel;
+
+  /// No description provided for @healthCaseClosedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'Holat yopildi'**
+  String get healthCaseClosedSnack;
+
+  /// No description provided for @healthSaveAndClose.
+  ///
+  /// In uz, this message translates to:
+  /// **'Saqlash va yopish'**
+  String get healthSaveAndClose;
+
+  /// No description provided for @healthCaseDeleteBody.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bu kasallik yozuvini o\'chirmoqchimisiz?'**
+  String get healthCaseDeleteBody;
+
+  /// No description provided for @healthCaseSavedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kasallik yozuvi saqlandi'**
+  String get healthCaseSavedSnack;
+
+  /// No description provided for @healthUnassignedLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hayvon tayinlanmagan'**
+  String get healthUnassignedLabel;
+
+  /// No description provided for @healthSymptomsSectionLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'ALOMATLAR'**
+  String get healthSymptomsSectionLabel;
+
+  /// No description provided for @healthAiDiagnosisLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'SONYA AI TASHXISI'**
+  String get healthAiDiagnosisLabel;
+
+  /// No description provided for @healthConfidencePercent.
+  ///
+  /// In uz, this message translates to:
+  /// **'{pct}% ISHONCH'**
+  String healthConfidencePercent(int pct);
+
+  /// No description provided for @healthClosedSummary.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ushbu holat muvaffaqiyatli yakunlangan. Oxirgi ko\'rik: {date}.'**
+  String healthClosedSummary(String date);
+
+  /// No description provided for @healthAssignHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hayvonga biriktirish'**
+  String get healthAssignHint;
 
   /// No description provided for @animalNotFoundTitle.
   ///
@@ -1628,6 +2079,132 @@ abstract class AppLocalizations {
   /// **'Ishonch: {pct}%'**
   String animalHealthConfidence(int pct);
 
+  /// No description provided for @animalMenuHealthy.
+  ///
+  /// In uz, this message translates to:
+  /// **'✅ Sog\'lom qilish'**
+  String get animalMenuHealthy;
+
+  /// No description provided for @animalDeathReasonLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'O\'lim sababi'**
+  String get animalDeathReasonLabel;
+
+  /// No description provided for @animalDeathReasonRequired.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sabab kiritish shart'**
+  String get animalDeathReasonRequired;
+
+  /// No description provided for @animalSoldReasonLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Izoh (ixtiyoriy)'**
+  String get animalSoldReasonLabel;
+
+  /// No description provided for @animalEditSheetTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tahrirlash'**
+  String get animalEditSheetTitle;
+
+  /// No description provided for @animalNameLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ism'**
+  String get animalNameLabel;
+
+  /// No description provided for @animalBreedFieldLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Zoti'**
+  String get animalBreedFieldLabel;
+
+  /// No description provided for @animalColorFieldLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Rangi'**
+  String get animalColorFieldLabel;
+
+  /// No description provided for @animalMotherFieldLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Onaning quloq raqami'**
+  String get animalMotherFieldLabel;
+
+  /// No description provided for @animalFatherFieldLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Otaning quloq raqami'**
+  String get animalFatherFieldLabel;
+
+  /// No description provided for @animalPregnancyStatusTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Homiladorlik holati'**
+  String get animalPregnancyStatusTitle;
+
+  /// No description provided for @animalPregnancyNone.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yo\'q'**
+  String get animalPregnancyNone;
+
+  /// No description provided for @animalPregnancyPregnant.
+  ///
+  /// In uz, this message translates to:
+  /// **'Homilador'**
+  String get animalPregnancyPregnant;
+
+  /// No description provided for @animalPregnancyUnknown.
+  ///
+  /// In uz, this message translates to:
+  /// **'Tekshirilmagan'**
+  String get animalPregnancyUnknown;
+
+  /// No description provided for @animalPregnancyMonthLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Homiladorlik oyi:'**
+  String get animalPregnancyMonthLabel;
+
+  /// No description provided for @animalPregnantWithMonth.
+  ///
+  /// In uz, this message translates to:
+  /// **'{month} oy homilador 🤰'**
+  String animalPregnantWithMonth(int month);
+
+  /// No description provided for @animalPregnantGeneric.
+  ///
+  /// In uz, this message translates to:
+  /// **'Homilador 🤰'**
+  String get animalPregnantGeneric;
+
+  /// No description provided for @animalAgeYearsMonths.
+  ///
+  /// In uz, this message translates to:
+  /// **'{years} yil {months} oy'**
+  String animalAgeYearsMonths(int years, int months);
+
+  /// No description provided for @animalAgeYears.
+  ///
+  /// In uz, this message translates to:
+  /// **'{years} yil'**
+  String animalAgeYears(int years);
+
+  /// No description provided for @animalAgeMonths.
+  ///
+  /// In uz, this message translates to:
+  /// **'{months} oy'**
+  String animalAgeMonths(int months);
+
+  /// No description provided for @animalStatusPickerTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Holatni o\'zgartirish'**
+  String get animalStatusPickerTitle;
+
   /// No description provided for @milkTitle.
   ///
   /// In uz, this message translates to:
@@ -1681,6 +2258,72 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'🌙 Kechqurun sut'**
   String get milkEveningTitle;
+
+  /// No description provided for @milkHeroLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'SUT YOZUVI'**
+  String get milkHeroLabel;
+
+  /// No description provided for @milkHeroTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bugungi jami sut'**
+  String get milkHeroTitle;
+
+  /// No description provided for @milkLitersUnit.
+  ///
+  /// In uz, this message translates to:
+  /// **'Litr'**
+  String get milkLitersUnit;
+
+  /// No description provided for @milkYesterday.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kecha: {liters} L'**
+  String milkYesterday(String liters);
+
+  /// No description provided for @milkDuplicateWarning.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bugun 2 mahal sut allaqachon qo\'shilgan. Yana sut qo\'shmoqchimisiz?'**
+  String get milkDuplicateWarning;
+
+  /// No description provided for @milkMorningEntry.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ertalabki sut'**
+  String get milkMorningEntry;
+
+  /// No description provided for @milkEveningEntry.
+  ///
+  /// In uz, this message translates to:
+  /// **'Kechqurungi sut'**
+  String get milkEveningEntry;
+
+  /// No description provided for @milkAnalysisLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'TAHLIL'**
+  String get milkAnalysisLabel;
+
+  /// No description provided for @milkTrendRising.
+  ///
+  /// In uz, this message translates to:
+  /// **'So\'nggi 3 kunda sut unumdorligi barqaror o\'sib bormoqda. Ozuqa tarkibini hozirgi holatda saqlab qolish tavsiya etiladi.'**
+  String get milkTrendRising;
+
+  /// No description provided for @milkTrendFalling.
+  ///
+  /// In uz, this message translates to:
+  /// **'So\'nggi 3 kunda sut unumdorligi pasaymoqda. Ozuqa va suv ta\'minotini tekshirib ko\'ring.'**
+  String get milkTrendFalling;
+
+  /// No description provided for @milkTrendStable.
+  ///
+  /// In uz, this message translates to:
+  /// **'So\'nggi 3 kunlik o\'rtacha sut hajmi {avg} litr. Barqaror holat kuzatilmoqda.'**
+  String milkTrendStable(String avg);
 
   /// No description provided for @vaccTitle.
   ///
@@ -1760,6 +2403,84 @@ abstract class AppLocalizations {
   /// **'Keyingi:'**
   String get vaccNextLabel;
 
+  /// No description provided for @vaccSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Chorva mollari sog\'lig\'ini nazorat qilish va boshqarish'**
+  String get vaccSubtitle;
+
+  /// No description provided for @vaccUpcoming.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yaqinlashayotgan\nemlashlar'**
+  String get vaccUpcoming;
+
+  /// No description provided for @vaccUrgentBadge.
+  ///
+  /// In uz, this message translates to:
+  /// **'{count} TA\nSHOSHILINCH'**
+  String vaccUrgentBadge(int count);
+
+  /// No description provided for @vaccAllRecords.
+  ///
+  /// In uz, this message translates to:
+  /// **'Barcha yozuvlar'**
+  String get vaccAllRecords;
+
+  /// No description provided for @vaccDueOverdue.
+  ///
+  /// In uz, this message translates to:
+  /// **'Muddati o\'tgan'**
+  String get vaccDueOverdue;
+
+  /// No description provided for @vaccDueToday.
+  ///
+  /// In uz, this message translates to:
+  /// **'Bugun'**
+  String get vaccDueToday;
+
+  /// No description provided for @vaccDueTomorrow.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ertaga'**
+  String get vaccDueTomorrow;
+
+  /// No description provided for @vaccDueInDays.
+  ///
+  /// In uz, this message translates to:
+  /// **'{days} kun qoldi'**
+  String vaccDueInDays(int days);
+
+  /// No description provided for @vaccVaccineLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'VAKSINA'**
+  String get vaccVaccineLabel;
+
+  /// No description provided for @vaccDueDateLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Muddat: {badge}'**
+  String vaccDueDateLabel(String badge);
+
+  /// No description provided for @vaccStatusDone.
+  ///
+  /// In uz, this message translates to:
+  /// **'BAJARILGAN'**
+  String get vaccStatusDone;
+
+  /// No description provided for @vaccStatusPlanned.
+  ///
+  /// In uz, this message translates to:
+  /// **'REJADA'**
+  String get vaccStatusPlanned;
+
+  /// No description provided for @vaccSavedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'Emlash yozuvi saqlandi'**
+  String get vaccSavedSnack;
+
   /// No description provided for @weightTitle.
   ///
   /// In uz, this message translates to:
@@ -1807,6 +2528,108 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Vazn'**
   String get weightLabel;
+
+  /// No description provided for @weightWeeklyAvg.
+  ///
+  /// In uz, this message translates to:
+  /// **'HAFTALIK O\'RTACHA'**
+  String get weightWeeklyAvg;
+
+  /// No description provided for @weightChartTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Vazn grafigi'**
+  String get weightChartTitle;
+
+  /// No description provided for @weightChartSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Oxirgi 6 oy'**
+  String get weightChartSubtitle;
+
+  /// No description provided for @weightRecentRecords.
+  ///
+  /// In uz, this message translates to:
+  /// **'So\'nggi qaydlar'**
+  String get weightRecentRecords;
+
+  /// No description provided for @weightSavedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'Vazn yozuvi saqlandi'**
+  String get weightSavedSnack;
+
+  /// No description provided for @weightMonthJan.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yan'**
+  String get weightMonthJan;
+
+  /// No description provided for @weightMonthFeb.
+  ///
+  /// In uz, this message translates to:
+  /// **'Fev'**
+  String get weightMonthFeb;
+
+  /// No description provided for @weightMonthMar.
+  ///
+  /// In uz, this message translates to:
+  /// **'Mar'**
+  String get weightMonthMar;
+
+  /// No description provided for @weightMonthApr.
+  ///
+  /// In uz, this message translates to:
+  /// **'Apr'**
+  String get weightMonthApr;
+
+  /// No description provided for @weightMonthMay.
+  ///
+  /// In uz, this message translates to:
+  /// **'May'**
+  String get weightMonthMay;
+
+  /// No description provided for @weightMonthJun.
+  ///
+  /// In uz, this message translates to:
+  /// **'Iyun'**
+  String get weightMonthJun;
+
+  /// No description provided for @weightMonthJul.
+  ///
+  /// In uz, this message translates to:
+  /// **'Iyul'**
+  String get weightMonthJul;
+
+  /// No description provided for @weightMonthAug.
+  ///
+  /// In uz, this message translates to:
+  /// **'Avg'**
+  String get weightMonthAug;
+
+  /// No description provided for @weightMonthSep.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sen'**
+  String get weightMonthSep;
+
+  /// No description provided for @weightMonthOct.
+  ///
+  /// In uz, this message translates to:
+  /// **'Okt'**
+  String get weightMonthOct;
+
+  /// No description provided for @weightMonthNov.
+  ///
+  /// In uz, this message translates to:
+  /// **'Noy'**
+  String get weightMonthNov;
+
+  /// No description provided for @weightMonthDec.
+  ///
+  /// In uz, this message translates to:
+  /// **'Dek'**
+  String get weightMonthDec;
 
   /// No description provided for @reportTitle.
   ///
@@ -1928,6 +2751,90 @@ abstract class AppLocalizations {
   /// **'O\'rtacha kunlik'**
   String get reportAvgMilk;
 
+  /// No description provided for @reportAnalyticsLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'TAHLILIY MA\'LUMOTLAR'**
+  String get reportAnalyticsLabel;
+
+  /// No description provided for @reportTotalLivestockLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'JAMI CHORVA'**
+  String get reportTotalLivestockLabel;
+
+  /// No description provided for @reportNoData.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ma\'lumot yo\'q'**
+  String get reportNoData;
+
+  /// No description provided for @reportYoungAnimalsTitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yosh hayvonlar (2 yoshgacha)'**
+  String get reportYoungAnimalsTitle;
+
+  /// No description provided for @reportNoYoungAnimals.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yosh hayvonlar yo\'q'**
+  String get reportNoYoungAnimals;
+
+  /// No description provided for @reportBySpeciesLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Turlar bo\'yicha'**
+  String get reportBySpeciesLabel;
+
+  /// No description provided for @reportNoAnimals.
+  ///
+  /// In uz, this message translates to:
+  /// **'Hayvon yo\'q'**
+  String get reportNoAnimals;
+
+  /// No description provided for @reportDayMon.
+  ///
+  /// In uz, this message translates to:
+  /// **'Du'**
+  String get reportDayMon;
+
+  /// No description provided for @reportDayTue.
+  ///
+  /// In uz, this message translates to:
+  /// **'Se'**
+  String get reportDayTue;
+
+  /// No description provided for @reportDayWed.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ch'**
+  String get reportDayWed;
+
+  /// No description provided for @reportDayThu.
+  ///
+  /// In uz, this message translates to:
+  /// **'Pa'**
+  String get reportDayThu;
+
+  /// No description provided for @reportDayFri.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ju'**
+  String get reportDayFri;
+
+  /// No description provided for @reportDaySat.
+  ///
+  /// In uz, this message translates to:
+  /// **'Sh'**
+  String get reportDaySat;
+
+  /// No description provided for @reportDaySun.
+  ///
+  /// In uz, this message translates to:
+  /// **'Ya'**
+  String get reportDaySun;
+
   /// No description provided for @reportHealthBySpecies.
   ///
   /// In uz, this message translates to:
@@ -1981,6 +2888,12 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Ferma ma\'lumotlari'**
   String get menuEditProfile;
+
+  /// No description provided for @menuPersonalInfo.
+  ///
+  /// In uz, this message translates to:
+  /// **'Shaxsiy ma\'lumotlar'**
+  String get menuPersonalInfo;
 
   /// No description provided for @menuLogout.
   ///
@@ -2099,7 +3012,7 @@ abstract class AppLocalizations {
   /// No description provided for @aiAssistantTitle.
   ///
   /// In uz, this message translates to:
-  /// **'Sonya — AI Veterinar'**
+  /// **'Asomiddin — AI Veterinar'**
   String get aiAssistantTitle;
 
   /// No description provided for @aiAssistantSubtitle.
@@ -2173,6 +3086,102 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'AI Veterinar · 15 yil tajriba'**
   String get aiExperience;
+
+  /// No description provided for @aiWelcomeMessage.
+  ///
+  /// In uz, this message translates to:
+  /// **'Salom! Men Sonya — sizning AI veterinar yordamchingizman. Hayvon holati, kasallik belgilari, emlash yoki vazn haqida menga xabar bering. Ovoz yoki matn bilan murojaat qiling.'**
+  String get aiWelcomeMessage;
+
+  /// No description provided for @aiServerError.
+  ///
+  /// In uz, this message translates to:
+  /// **'⚠️ Server bilan bog\'lanib bo\'lmadi, qayta urinib ko\'ring'**
+  String get aiServerError;
+
+  /// No description provided for @aiPhotoSavedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'✅ Saqlandi — Salomatlik bo\'limida hayvonga biriktiring'**
+  String get aiPhotoSavedSnack;
+
+  /// No description provided for @aiSavedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'Saqlandi'**
+  String get aiSavedSnack;
+
+  /// No description provided for @aiGenericError.
+  ///
+  /// In uz, this message translates to:
+  /// **'Xatolik yuz berdi. Qayta urinib ko\'ring.'**
+  String get aiGenericError;
+
+  /// No description provided for @aiSttFailedSnack.
+  ///
+  /// In uz, this message translates to:
+  /// **'🎤 Ovoz tanilmadi, qayta urinib ko\'ring'**
+  String get aiSttFailedSnack;
+
+  /// No description provided for @aiCameraOption.
+  ///
+  /// In uz, this message translates to:
+  /// **'📷 Kamera'**
+  String get aiCameraOption;
+
+  /// No description provided for @aiCameraSubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Yangi rasm olish'**
+  String get aiCameraSubtitle;
+
+  /// No description provided for @aiGalleryOption.
+  ///
+  /// In uz, this message translates to:
+  /// **'🖼️ Galereya'**
+  String get aiGalleryOption;
+
+  /// No description provided for @aiGallerySubtitle.
+  ///
+  /// In uz, this message translates to:
+  /// **'Telefondan tanlash'**
+  String get aiGallerySubtitle;
+
+  /// No description provided for @aiDeleteConversation.
+  ///
+  /// In uz, this message translates to:
+  /// **'Suhbatni o\'chirish'**
+  String get aiDeleteConversation;
+
+  /// No description provided for @aiVetContactLabel.
+  ///
+  /// In uz, this message translates to:
+  /// **'Veterinar: {name}'**
+  String aiVetContactLabel(String name);
+
+  /// No description provided for @aiCallVetNow.
+  ///
+  /// In uz, this message translates to:
+  /// **'Darhol veterinar chaqiring!'**
+  String get aiCallVetNow;
+
+  /// No description provided for @aiPhotoAddedHint.
+  ///
+  /// In uz, this message translates to:
+  /// **'Rasm qo\'shildi. Matn kiriting va yuboring.'**
+  String get aiPhotoAddedHint;
+
+  /// No description provided for @aiTranscribing.
+  ///
+  /// In uz, this message translates to:
+  /// **'🎤 Tahlil qilinmoqda...'**
+  String get aiTranscribing;
+
+  /// No description provided for @aiSwipeToLock.
+  ///
+  /// In uz, this message translates to:
+  /// **'↑ yuqoriga → qulflash'**
+  String get aiSwipeToLock;
 }
 
 class _AppLocalizationsDelegate
@@ -2193,6 +3202,18 @@ class _AppLocalizationsDelegate
 }
 
 AppLocalizations lookupAppLocalizations(Locale locale) {
+  // Lookup logic when language+script codes are specified.
+  switch (locale.languageCode) {
+    case 'uz':
+      {
+        switch (locale.scriptCode) {
+          case 'Cyrl':
+            return AppLocalizationsUzCyrl();
+        }
+        break;
+      }
+  }
+
   // Lookup logic when only language code is specified.
   switch (locale.languageCode) {
     case 'ru':

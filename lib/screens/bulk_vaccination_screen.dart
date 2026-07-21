@@ -319,8 +319,8 @@ class _SpeciesFilterBar extends StatelessWidget {
     required this.species,
   });
 
-  String _label(String s) {
-    if (s == 'all') return 'Barchasi';
+  String _label(BuildContext context, String s) {
+    if (s == 'all') return AppLocalizations.of(context).speciesAll;
     return '${speciesEmoji(s)} ${speciesLabel(s)}';
   }
 
@@ -338,7 +338,7 @@ class _SpeciesFilterBar extends StatelessWidget {
             padding: const EdgeInsets.only(right: 8),
             child: FilterChip(
               selected: isSelected,
-              label: Text('${_label(s)} ($count)'),
+              label: Text('${_label(context, s)} ($count)'),
               onSelected: (_) => onSelect(s),
               selectedColor: kOrange.withValues(alpha: 0.18),
               checkmarkColor: kOrange,
