@@ -544,7 +544,7 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
   // ── 11. Railway backend chat ─────────────────────────────────────────────────
 
   static const _backendUrl =
-      'https://farm-production-3ea5.up.railway.app';
+      'https://farm-production-c980.up.railway.app';
 
   /// Push all local SQLite animals to Firestore so the AI backend can see them.
   static Future<void> syncAnimalsToBackend(String farmId) async {
