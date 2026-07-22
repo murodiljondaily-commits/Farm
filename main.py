@@ -361,7 +361,16 @@ async def chat(req: ChatRequest):
         )
     except Exception as exc:
         msg = str(exc)
-        print(f"[/chat] ERROR: {exc}")
+        # google.api_core exceptions often carry far more detail in these
+        # attributes than str(exc) shows (the exact gRPC status, the specific
+        # permission/resource involved) — surface everything available so a
+        # generic "403 Missing or insufficient permissions" doesn't hide the
+        # actual reason.
+        debug_str = getattr(exc, "debug_error_string", None)
+        details = getattr(exc, "details", None)
+        details_str = details() if callable(details) else details
+        print(f"[/chat] ERROR: type={type(exc).__name__} str={exc!r} "
+              f"details={details_str!r} debug_error_string={debug_str!r}")
         # Show the farmer a clear message instead of a hard error. Two distinct
         # cases: quota exhausted (429 — fix is billing/quota on the key) vs a
         # temporary Google-side overload (503 — retry in a moment). Never call
