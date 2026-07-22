@@ -50,7 +50,18 @@ def _init_firebase():
     except json.JSONDecodeError as e:
         raise RuntimeError(f"GOOGLE_SERVICE_ACCOUNT_JSON(_B64) is not valid JSON: {e}")
     cred = credentials.Certificate(cred_dict)
-    firebase_project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
+    # The credential JSON's own project_id is always correct for that exact
+    # key (it's baked into the private key/IAM grant) — trust it over the
+    # env var, which is free-typed and has already been truncated once in
+    # this deployment ("appag-499817" vs the real "appag-499817-71026"),
+    # causing every Firestore call to 403 against the wrong project while
+    # still authenticating successfully as a valid-but-foreign service account.
+    firebase_project = cred_dict.get("project_id") or os.environ.get("FIREBASE_PROJECT_ID")
+    env_project = os.environ.get("FIREBASE_PROJECT_ID")
+    if env_project and env_project != firebase_project:
+        print(f"[Firebase] WARNING: FIREBASE_PROJECT_ID env var ({env_project!r}) "
+              f"does not match credential's project_id ({firebase_project!r}); "
+              f"using the credential's value.")
     firebase_admin.initialize_app(cred, {
         "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", f"{firebase_project}.appspot.com"),
         "projectId": firebase_project,

@@ -119,15 +119,26 @@ async def debug_firebase():
     result = {}
 
     # ── Step 1: Inspect raw JSON before touching firebase_admin ──────
+    import base64
+    raw_b64 = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON_B64", "").strip()
     raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    result["step1_b64_env_var_length"] = len(raw_b64)
     result["step1_env_var_length"] = len(raw)
     result["step1_FIREBASE_PROJECT_ID"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
     gem_key = os.environ.get("GEMINI_API_KEY", "")
     result["step1_GEMINI_API_KEY_set"] = bool(gem_key)
     result["step1_GEMINI_API_KEY_prefix"] = gem_key[:8] if gem_key else "NOT SET"
 
+    if raw_b64:
+        try:
+            raw = base64.b64decode(raw_b64).decode("utf-8")
+            result["step1_b64_decode"] = "OK"
+        except Exception as e:
+            result["step1_error"] = f"GOOGLE_SERVICE_ACCOUNT_JSON_B64 failed to decode: {e}"
+            return result
+
     if not raw:
-        result["step1_error"] = "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
+        result["step1_error"] = "Neither GOOGLE_SERVICE_ACCOUNT_JSON_B64 nor GOOGLE_SERVICE_ACCOUNT_JSON is set"
         return result
 
     try:
@@ -175,7 +186,10 @@ async def debug_firebase():
         except Exception:
             return {"certificate_build": "FAILED", "traceback": traceback.format_exc()}
 
-        firebase_project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
+        firebase_project = cred_dict.get("project_id") or os.environ.get("FIREBASE_PROJECT_ID")
+        env_project = os.environ.get("FIREBASE_PROJECT_ID")
+        init_info["env_FIREBASE_PROJECT_ID"] = env_project or "NOT SET"
+        init_info["cred_project_id"] = cred_dict.get("project_id", "MISSING")
         try:
             firebase_admin.initialize_app(cred, {
                 "storageBucket": os.environ.get(
@@ -254,7 +268,7 @@ async def debug_firebase():
         )
         creds.refresh(ga_requests.Request())
         token = creds.token
-        project = os.environ.get("FIREBASE_PROJECT_ID", cred_dict.get("project_id"))
+        project = cred_dict.get("project_id") or os.environ.get("FIREBASE_PROJECT_ID")
         # List documents in _diag collection via REST
         url = (
             f"https://firestore.googleapis.com/v1/"
