@@ -1,4 +1,5 @@
 import base64
+import io
 import os
 import json
 from datetime import datetime, timezone
@@ -6,9 +7,43 @@ from typing import Optional, Dict
 
 from openai import AsyncOpenAI
 from firebase_admin import storage as fb_storage
+from PIL import Image, ImageOps
+import pillow_heif
+
+pillow_heif.register_heif_opener()
 
 _openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "").strip())
 VISION_MODEL = "gpt-4o-mini"
+
+
+def normalize_to_jpeg(image_bytes: bytes) -> bytes:
+    """Decode whatever format the phone's camera actually produced and
+    re-encode as guaranteed-real JPEG bytes.
+
+    Many Samsung phones (confirmed: the SM A155F used for live testing) save
+    camera photos as HEIC/HEIF by default. The Flutter client was labeling
+    every upload as image/jpeg regardless of the real format — OpenAI's
+    vision API only accepts png/jpeg/gif/webp and correctly rejects real HEIC
+    bytes even when mislabeled (confirmed via direct testing: 400
+    invalid_image_format). Decoding through Pillow (with the HEIF opener
+    registered) removes any dependency on the client's declared content-type
+    being accurate, and also fixes camera-rotation EXIF handling.
+
+    Falls back to the original bytes on failure so a truly-corrupt upload
+    fails the same way it did before this normalization existed, rather than
+    a new, different way.
+    """
+    try:
+        img = Image.open(io.BytesIO(image_bytes))
+        img = ImageOps.exif_transpose(img)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=90)
+        return buf.getvalue()
+    except Exception as exc:
+        print(f"[Storage] Image normalization failed, using original bytes: {exc}")
+        return image_bytes
 
 
 async def upload_photo(
@@ -43,16 +78,14 @@ async def upload_photo(
     return blob.public_url
 
 
-# GPT-4o mini vision accepts jpeg/png/webp/gif — normalise anything else to jpeg
-_ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
-
 async def analyze_photo(
     image_bytes: bytes,
     animal_context: str,
     body_part_hint: str = "",
-    content_type: str = "image/jpeg",
 ) -> Dict:
-    media_type = content_type if content_type in _ALLOWED_IMAGE_TYPES else "image/jpeg"
+    # Caller (main.py's /diagnose-photo) always passes bytes through
+    # normalize_to_jpeg first, so this is always genuinely image/jpeg.
+    media_type = "image/jpeg"
 
     prompt = f"""Siz tajribali veterinarsiz. Bu hayvon rasmini tahlil qiling.
 

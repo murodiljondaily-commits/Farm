@@ -146,7 +146,7 @@ async def add_health_case(
         "confirmed_by_vet": False,
         "vet_notes": None,
         "outcome": None,
-        "ai_model": "gemini-2.0-flash",
+        "ai_model": "claude-sonnet-5",
         "visual_findings": "",
         "status": "open",
     }

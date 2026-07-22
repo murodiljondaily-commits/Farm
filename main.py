@@ -12,7 +12,7 @@ from fastapi.responses import Response
 import firestore_db
 from models import ChatRequest, ChatResponse, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest, UpdateCaseStatusRequest
 from agent import run_agent
-from storage import upload_photo, analyze_photo
+from storage import upload_photo, analyze_photo, normalize_to_jpeg
 from tools import close_case as close_case_tool
 from tools import update_case_status as update_case_status_tool
 from excel_export import generate_farm_excel
@@ -449,7 +449,7 @@ async def photo_upload(
     image: UploadFile = File(...),
 ):
     try:
-        image_bytes = await image.read()
+        image_bytes = normalize_to_jpeg(await image.read())
 
         animal = await firestore_db.get_animal(farm_id, ear_tag)
         animal_context = (
@@ -536,11 +536,17 @@ async def diagnose_photo(
     body_part: Optional[str] = Form(None),
     image: UploadFile = File(...),
 ):
-    """Vision diagnosis endpoint — Flutter uploads image, backend calls Gemini."""
+    """Vision diagnosis endpoint — Flutter uploads image, backend calls GPT-4o mini."""
     try:
-        image_bytes = await image.read()
+        raw_bytes = await image.read()
+        # Normalize BEFORE either consumer sees it: many phones (confirmed:
+        # Samsung default camera settings) save photos as HEIC/HEIF, and the
+        # Flutter client's declared content_type can't be trusted to match
+        # the real bytes. OpenAI's vision API only accepts png/jpeg/gif/webp
+        # and rejects real HEIC outright even when mislabeled as image/jpeg.
+        image_bytes = normalize_to_jpeg(raw_bytes)
         print(f"[/diagnose-photo] farm={farm_id} ear_tag={ear_tag} size={len(image_bytes)}B "
-              f"content_type={image.content_type}")
+              f"(raw={len(raw_bytes)}B) content_type={image.content_type}")
 
         animal_context = ""
         animal = None
@@ -553,10 +559,7 @@ async def diagnose_photo(
                 )
 
         print(f"[/diagnose-photo] calling analyze_photo...")
-        analysis = await analyze_photo(
-            image_bytes, animal_context, body_part or "",
-            content_type=image.content_type or "image/jpeg",
-        )
+        analysis = await analyze_photo(image_bytes, animal_context, body_part or "")
         print(f"[/diagnose-photo] analysis success: {str(analysis)[:200]}")
 
         species = animal.get("species", "") if animal else ""
@@ -603,7 +606,7 @@ async def diagnose_photo(
                 "vet_notes": None,
                 "outcome": None,
                 "source": "photo_diagnosis",
-                "ai_model": "gemini-2.5-flash",
+                "ai_model": "gpt-4o-mini",
                 "status": "open",
             }
             event_data = {

@@ -8,7 +8,8 @@ google-api-python-client==2.153.0
 gspread==6.1.4
 httpx==0.28.0
 python-multipart==0.0.20
-pillow==11.0.0
+pillow==12.2.0
+pillow-heif==1.4.0
 python-dotenv==1.0.1
 anthropic==0.117.0
 openai==2.46.0
