@@ -6,6 +6,7 @@ composes the natural farmer-facing reply from Sonnet's English summary on
 the way out. Uses Gemini specifically because its Uzbek is more natural than
 Claude's for this — a deliberate choice, not a placeholder.
 """
+import asyncio
 import os
 from typing import Dict
 
@@ -14,6 +15,12 @@ from google.genai import types
 
 _client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", "").strip())
 MODEL = "gemini-2.5-flash-lite"
+# Same fallback chain as agent.py's MODEL/FALLBACK_MODELS (duplicated, not
+# imported, to avoid a circular import with agent.py). The pinned model 404s
+# ("no longer available to new users") on some API keys/projects — confirmed
+# live on this deployment via /debug-firebase — so every call here must be
+# able to step down rather than silently pass through untranslated text.
+FALLBACK_MODELS = ("gemini-flash-lite-latest", "gemini-2.5-flash")
 
 
 def _thinking_off_kwargs() -> Dict:
@@ -28,6 +35,45 @@ def _thinking_off_kwargs() -> Dict:
 
 
 _THINKING_OFF = _thinking_off_kwargs()
+
+
+async def _generate_text(prompt: str, max_output_tokens: int) -> str:
+    """Call Gemini for a single text-in/text-out prompt, stepping down
+    MODEL -> FALLBACK_MODELS on 404/not-found or 503/overloaded instead of
+    raising — mirrors agent.py's _generate fallback behavior. Raises only if
+    every model fails, so callers can decide their own fallback (usually:
+    return the untranslated/unsummarized text)."""
+    last_exc = None
+    # thinking_budget=0 is a flash-lite-specific optimization (see
+    # _thinking_off_kwargs) — confirmed by direct testing that forcing it on
+    # gemini-flash-lite-latest 400s ("invalid argument"), so only the exact
+    # pinned MODEL gets it; every fallback uses its own default.
+    primary_config = types.GenerateContentConfig(max_output_tokens=max_output_tokens, **_THINKING_OFF)
+    fallback_config = types.GenerateContentConfig(max_output_tokens=max_output_tokens)
+    for model in (MODEL, *FALLBACK_MODELS):
+        config = primary_config if model == MODEL else fallback_config
+        for attempt in range(2):
+            try:
+                resp = await _client.aio.models.generate_content(
+                    model=model, contents=prompt, config=config,
+                )
+                text = (resp.text or "").strip()
+                if text:
+                    if model != MODEL:
+                        print(f"[LanguageBoundary] reply served by FALLBACK model {model}")
+                    return text
+                break  # empty response — no point retrying same model twice here
+            except Exception as exc:
+                msg = str(exc).lower()
+                last_exc = exc
+                if "503" in msg or "unavailable" in msg or "overloaded" in msg:
+                    print(f"[LanguageBoundary] {model} 503/unavailable (attempt {attempt + 1}/2)")
+                    await asyncio.sleep(1.0 * (attempt + 1))
+                    continue
+                print(f"[LanguageBoundary] {model} failed ({msg[:100]}) — trying next model")
+                break
+    raise last_exc if last_exc else RuntimeError("Gemini: all models returned empty")
+
 
 _LOCALE_NAMES = {
     "uz": "Uzbek (Latin script)",
@@ -51,13 +97,7 @@ async def translate_to_english(text: str) -> str:
         f"Message: {text}"
     )
     try:
-        resp = await _client.aio.models.generate_content(
-            model=MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(max_output_tokens=512, **_THINKING_OFF),
-        )
-        translated = (resp.text or "").strip()
-        return translated or text
+        return await _generate_text(prompt, max_output_tokens=512)
     except Exception as exc:
         print(f"[LanguageBoundary] translate_to_english failed, using raw text: {exc}")
         return text
@@ -87,13 +127,7 @@ What you found/decided (English):
 {summary}"""
 
     try:
-        resp = await _client.aio.models.generate_content(
-            model=MODEL,
-            contents=prompt,
-            config=types.GenerateContentConfig(max_output_tokens=1024, **_THINKING_OFF),
-        )
-        composed = (resp.text or "").strip()
-        return composed or summary
+        return await _generate_text(prompt, max_output_tokens=1024)
     except Exception as exc:
         print(f"[LanguageBoundary] compose_reply failed, using raw summary: {exc}")
         return summary
