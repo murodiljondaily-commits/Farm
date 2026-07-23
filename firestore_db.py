@@ -65,10 +65,21 @@ def _init_firebase():
     # Google's default bucket naming for newly-created Firebase Storage
     # buckets is now "{project}.firebasestorage.app", not the legacy
     # "{project}.appspot.com" — confirmed directly for this project (the
-    # .appspot.com name returns 404, the bucket actually created via the
-    # Console is appag-499817-71026.firebasestorage.app). FIREBASE_STORAGE_BUCKET
-    # still overrides if a project genuinely uses the legacy bucket.
-    storage_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET") or f"{firebase_project}.firebasestorage.app"
+    # .appspot.com name 404s; the bucket actually created via the Console is
+    # appag-499817-71026.firebasestorage.app). FIREBASE_STORAGE_BUCKET on
+    # Railway was set to "appag-499817.appspot.com" — the SAME truncated
+    # project id that caused the earlier Firestore 403, plus the legacy
+    # suffix — so it's stale/wrong on two counts, not a deliberate override.
+    # Only trust the env var if it's actually scoped to the real project id;
+    # otherwise use the verified-correct derived default.
+    env_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET", "")
+    if env_bucket and env_bucket.startswith(firebase_project):
+        storage_bucket = env_bucket
+    else:
+        if env_bucket:
+            print(f"[Firebase] WARNING: FIREBASE_STORAGE_BUCKET env var ({env_bucket!r}) "
+                  f"doesn't match project {firebase_project!r}; using the derived default.")
+        storage_bucket = f"{firebase_project}.firebasestorage.app"
     firebase_admin.initialize_app(cred, {
         "storageBucket": storage_bucket,
         "projectId": firebase_project,
