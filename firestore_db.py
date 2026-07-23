@@ -62,8 +62,15 @@ def _init_firebase():
         print(f"[Firebase] WARNING: FIREBASE_PROJECT_ID env var ({env_project!r}) "
               f"does not match credential's project_id ({firebase_project!r}); "
               f"using the credential's value.")
+    # Google's default bucket naming for newly-created Firebase Storage
+    # buckets is now "{project}.firebasestorage.app", not the legacy
+    # "{project}.appspot.com" — confirmed directly for this project (the
+    # .appspot.com name returns 404, the bucket actually created via the
+    # Console is appag-499817-71026.firebasestorage.app). FIREBASE_STORAGE_BUCKET
+    # still overrides if a project genuinely uses the legacy bucket.
+    storage_bucket = os.environ.get("FIREBASE_STORAGE_BUCKET") or f"{firebase_project}.firebasestorage.app"
     firebase_admin.initialize_app(cred, {
-        "storageBucket": os.environ.get("FIREBASE_STORAGE_BUCKET", f"{firebase_project}.appspot.com"),
+        "storageBucket": storage_bucket,
         "projectId": firebase_project,
     })
     print(f"[Firebase] project={firebase_project} sa={cred_dict.get('project_id')}")

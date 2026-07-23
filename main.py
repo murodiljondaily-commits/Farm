@@ -125,6 +125,7 @@ async def debug_firebase():
     result["step1_b64_env_var_length"] = len(raw_b64)
     result["step1_env_var_length"] = len(raw)
     result["step1_FIREBASE_PROJECT_ID"] = os.environ.get("FIREBASE_PROJECT_ID", "NOT SET")
+    result["step1_FIREBASE_STORAGE_BUCKET"] = os.environ.get("FIREBASE_STORAGE_BUCKET", "NOT SET")
     gem_key = os.environ.get("GEMINI_API_KEY", "")
     result["step1_GEMINI_API_KEY_set"] = bool(gem_key)
     result["step1_GEMINI_API_KEY_prefix"] = gem_key[:8] if gem_key else "NOT SET"
