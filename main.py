@@ -537,7 +537,7 @@ async def diagnose_photo(
     body_part: Optional[str] = Form(None),
     image: UploadFile = File(...),
 ):
-    """Vision diagnosis endpoint — Flutter uploads image, backend calls GPT-4o mini."""
+    """Vision diagnosis endpoint — Flutter uploads image, backend calls Claude Sonnet vision."""
     try:
         raw_bytes = await image.read()
         # Normalize BEFORE either consumer sees it: many phones (confirmed:
@@ -607,7 +607,7 @@ async def diagnose_photo(
                 "vet_notes": None,
                 "outcome": None,
                 "source": "photo_diagnosis",
-                "ai_model": "gpt-4o-mini",
+                "ai_model": "claude-sonnet-5",
                 "status": "open",
             }
             event_data = {

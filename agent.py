@@ -10,7 +10,6 @@ from google import genai
 from google.genai import types
 
 import claude_orchestrator
-import language_boundary
 import firestore_db
 from context_builder import build_farm_context
 from tool_schemas import (
@@ -515,10 +514,18 @@ async def run_agent(
     vet_mode: bool,
     locale: str = "uz",
 ) -> Dict:
-    """Phase 6: Sonnet decides, Gemini handles both language boundaries (see
-    claude_orchestrator.py / language_boundary.py). Kept the exact same
-    signature/return shape as the old Gemini-native implementation so
-    main.py's /chat handler needed zero changes.
+    """Phase 6: Sonnet reads the farmer's message directly in their own
+    language/script and replies directly in it too — no separate translation
+    layer (see claude_orchestrator.py). An earlier Gemini-based boundary was
+    removed after being caught corrupting short/casual messages containing
+    animal names (e.g. "guli kasal" -> "gullet blocked"/"throat cough" on two
+    different calls for the identical input); Sonnet's native understanding
+    tested substantially more accurate on the same real farmer messages, and
+    cutting two Gemini hops per turn (one of which re-translated the ENTIRE
+    conversation history from scratch every single turn) also removes what
+    was very likely the dominant source of the reported 17-25s latency.
+    Kept the exact same signature/return shape as the prior implementation
+    so main.py's /chat handler needed zero changes.
 
     The old chat-typed-"yes" pending_writes confirmation path was dropped —
     confirmed dead code before this rewrite (nothing in the repo ever
@@ -537,35 +544,29 @@ async def run_agent(
     context = await build_farm_context(farm_id)
     raw_history = await firestore_db.get_conversation_history(farm_id, conversation_id, limit=10)
 
-    # History was stored in the farmer's own language (see save_conversation_
-    # turn below) — Sonnet only ever sees English, so translate each turn.
-    history_en: List[Dict[str, str]] = []
-    for m in raw_history:
-        role = m.get("role")
-        text = m.get("content") or ""
-        if not text or role not in ("user", "assistant"):
-            continue
-        history_en.append({
-            "role": role,
-            "content": await language_boundary.translate_to_english(text),
-        })
+    # Stored (and read back) in the farmer's own language — Sonnet now reads
+    # it directly, no per-turn translation pass over the whole history.
+    history: List[Dict[str, str]] = [
+        {"role": m.get("role"), "content": m.get("content") or ""}
+        for m in raw_history
+        if (m.get("content") or "") and m.get("role") in ("user", "assistant")
+    ]
 
     msg_lower = user_message.lower()
     is_emergency_hint = any(kw in msg_lower for kw in EMERGENCY_KW)
 
-    english_message = await language_boundary.translate_to_english(user_message)
-
     result = await claude_orchestrator.decide_and_act(
         farm_id=farm_id,
-        message=english_message,
-        history=history_en,
+        message=user_message,
+        history=history,
         farm_context=context,
         pinned_animal=pinned_animal,
         vet_mode=vet_mode,
         is_emergency_hint=is_emergency_hint,
+        locale=locale,
     )
 
-    final_text = await language_boundary.compose_reply(result["response"], locale=locale)
+    final_text = result["response"]
     if not final_text.strip():
         final_text = _LOCALE_FALLBACK_ERROR.get(locale, _LOCALE_FALLBACK_ERROR["uz"])
 

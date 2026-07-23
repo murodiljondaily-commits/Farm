@@ -5,15 +5,23 @@ import json
 from datetime import datetime, timezone
 from typing import Optional, Dict
 
-from openai import AsyncOpenAI
+import anthropic
 from firebase_admin import storage as fb_storage
 from PIL import Image, ImageOps
 import pillow_heif
 
 pillow_heif.register_heif_opener()
 
-_openai_client = AsyncOpenAI(api_key=os.environ.get("OPENAI_API_KEY", "").strip())
-VISION_MODEL = "gpt-4o-mini"
+_anthropic_client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY", "").strip())
+VISION_MODEL = "claude-sonnet-5"
+# Switched from GPT-4o-mini: direct A/B on the same test image showed
+# GPT-4o-mini confidently fabricating a specific diagnosis (leg, severity,
+# 85% confidence) for an image that was actually a synthetic test graphic
+# with literal text drawn on it ("test leg wound") — it never noticed the
+# image wasn't a real photo. Sonnet correctly read the text, recognized the
+# image as a non-clinical test graphic, and gave low confidence instead of
+# inventing specifics. For a vet-advice product, that calibration difference
+# matters more than raw speed.
 
 
 def normalize_to_jpeg(image_bytes: bytes) -> bytes:
@@ -22,9 +30,10 @@ def normalize_to_jpeg(image_bytes: bytes) -> bytes:
 
     Many Samsung phones (confirmed: the SM A155F used for live testing) save
     camera photos as HEIC/HEIF by default. The Flutter client was labeling
-    every upload as image/jpeg regardless of the real format — OpenAI's
-    vision API only accepts png/jpeg/gif/webp and correctly rejects real HEIC
-    bytes even when mislabeled (confirmed via direct testing: 400
+    every upload as image/jpeg regardless of the real format — vision APIs
+    (tested against OpenAI's; Claude's accepts the same jpeg/png/gif/webp
+    set) only accept a small set of real image formats and correctly reject
+    real HEIC bytes even when mislabeled (confirmed via direct testing: 400
     invalid_image_format). Decoding through Pillow (with the HEIF opener
     registered) removes any dependency on the client's declared content-type
     being accurate, and also fixes camera-rotation EXIF handling.
@@ -105,28 +114,27 @@ Faqat JSON formatda javob bering (boshqa hech narsa yozmang):
     b64_image = base64.b64encode(image_bytes).decode("ascii")
 
     try:
-        response = await _openai_client.chat.completions.create(
+        response = await _anthropic_client.messages.create(
             model=VISION_MODEL,
             max_tokens=1024,
-            response_format={"type": "json_object"},
             messages=[
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": prompt},
                         {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{media_type};base64,{b64_image}"},
+                            "type": "image",
+                            "source": {"type": "base64", "media_type": media_type, "data": b64_image},
                         },
+                        {"type": "text", "text": prompt},
                     ],
                 }
             ],
         )
     except Exception as exc:
-        print(f"[Storage] GPT-4o mini vision call failed: {exc}")
+        print(f"[Storage] Claude Sonnet vision call failed: {exc}")
         raise
 
-    text = response.choices[0].message.content or ""
+    text = "".join(b.text for b in response.content if getattr(b, "type", None) == "text")
     clean = text.replace("```json", "").replace("```", "").strip()
     try:
         return json.loads(clean)

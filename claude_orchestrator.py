@@ -1,14 +1,14 @@
 """Sonnet-based orchestration — the "brain" that decides what a farmer's
-message means and which tool(s) to call. Runs entirely in English; the
-farmer's own language never reaches this module and Sonnet never produces
-farmer-facing text directly (see language_boundary.py, which wraps this on
-both sides). Reuses the existing tool functions and propose/confirm/execute
-plumbing from tool_schemas.py/tools.py unchanged — only the decision-maker
-is new.
-
-Deliberately NOT wired into agent.py's run_agent() yet — this module is
-self-contained and independently testable first; the entry-point rewiring
-is a separate, later step (see the Phase 6 plan).
+message means, which tool(s) to call, and composes the farmer-facing reply
+directly in their own language/script. No separate translation layer: an
+earlier Gemini-based language boundary (language_boundary.py, now removed)
+was found to actively corrupt short/casual farmer messages containing animal
+names — e.g. "guli kasal" (Guli is sick) mistranslated to "gullet blocked"
+one call and "throat cough" the next; Sonnet's own native Uzbek/Russian/
+Cyrillic understanding tested substantially more accurately on the same
+inputs, so it now reads and writes the farmer's language directly. Reuses
+the existing tool functions and propose/confirm/execute plumbing from
+tool_schemas.py/tools.py unchanged — only the decision-maker is new.
 """
 import os
 from typing import Any, Dict, List, Optional
@@ -46,11 +46,12 @@ _FINISH_TOOL = {
             "summary": {
                 "type": "string",
                 "description": (
-                    "Plain English summary of what you found/did, or the "
-                    "question you're asking — this is translated and shown "
-                    "to the farmer as-is, so write only what a busy farmer "
-                    "needs: 3-5 sentences, no mention of tools/databases/"
-                    "saving, no meta-commentary."
+                    "Your ACTUAL reply to the farmer, in their own language "
+                    "and script (see LANGUAGE section of the system prompt) "
+                    "— shown to them exactly as written, so write only what "
+                    "a busy farmer needs: 3-5 sentences, warm and natural, "
+                    "no mention of tools/databases/saving, no meta-commentary, "
+                    "no markdown formatting."
                 ),
             },
             "confidence": {
@@ -70,7 +71,34 @@ _FINISH_TOOL = {
     },
 }
 
-SYSTEM_PROMPT = """You are Sonya, the AI veterinarian and farm manager for the AgriVet app — 15 years of experience, based in the Fergana Valley. You reason and act entirely in English; a separate translation layer handles the farmer's actual language on both ends, so you never see or produce anything but English.
+# Farmer-facing script/language instruction per locale — Cyrillic needs an
+# explicit example, otherwise models default to Latin Uzbek even when asked
+# for "Uzbek" in Cyrillic script (confirmed pattern from the old Gemini
+# compose_reply prompt, carried forward here since it worked).
+_LOCALE_INSTRUCTIONS = {
+    "uz": "Reply in Uzbek, LATIN script.",
+    "uz_Cyrl": "Reply in Uzbek, but in CYRILLIC script (e.g. 'Ассалому алайкум', "
+               "'йўқ', 'соғлом'), NOT Latin script.",
+    "ru": "Reply in Russian.",
+}
+
+# With no separate compose_reply step to localize a hardcoded fallback
+# string, the MAX_TOOL_ITERATIONS-exhausted message must already be
+# per-locale text, not English that would leak straight to the farmer.
+_TIMEOUT_FALLBACK = {
+    "uz": "Kechirasiz, bir soniya — buni yana bir bor takrorlab yubora olasizmi?",
+    "uz_Cyrl": "Кечирасиз, бир сония — буни яна бир бор такрорлаб юбора оласизми?",
+    "ru": "Извините, секунду — не могли бы вы повторить это ещё раз?",
+}
+
+SYSTEM_PROMPT = """You are Sonya, the AI veterinarian and farm manager for the AgriVet app — 15 years of experience, based in the Fergana Valley. You read the farmer's messages directly in whatever language/script they write in (Uzbek Latin, Uzbek Cyrillic, or Russian — sometimes with typos or non-standard spelling) and reply directly in their language too. There is no translation layer on either side — you ARE the one talking to the farmer.
+
+LANGUAGE:
+- Understand the farmer's message directly — do not silently reinterpret unfamiliar words into unrelated concepts. If a word is genuinely ambiguous or you can't tell if it's a name, a typo, or a real word, treat it as a likely animal name/nickname (farmers name their animals) or ask, rather than guessing a confident-sounding but unrelated meaning.
+- {locale_instruction}
+- Plain, everyday farmer language in your replies — no medical jargon or scientific terms; explain anything technical in words a farmer would actually use.
+- 3-5 sentences, warm and natural spoken tone, as if you're speaking directly to them.
+- NO markdown formatting at all in your replies: no **, no *, no bullet points, no # headers, no tables — this is a plain-text mobile chat.
 
 YOUR JOB:
 1. Take every word the farmer says seriously.
@@ -173,14 +201,16 @@ async def decide_and_act(
     pinned_animal: Optional[str] = None,
     vet_mode: bool = False,
     is_emergency_hint: bool = False,
+    locale: str = "uz",
 ) -> Dict[str, Any]:
     """Runs one turn of the Sonnet tool-calling loop. `message` and `history`
-    must already be in English (see language_boundary.translate_to_english).
+    are the farmer's own original-language text (Uzbek/Russian/Cyrillic) —
+    Sonnet reads and replies in that language directly, no translation hop.
 
-    Returns a dict with: response (English summary), tools_called,
-    data_saved (results of tools that executed immediately),
-    proposed_actions (writes awaiting farmer confirmation), confidence,
-    is_emergency, needs_confirmation.
+    Returns a dict with: response (the farmer-facing reply, already in their
+    language/script), tools_called, data_saved (results of tools that
+    executed immediately), proposed_actions (writes awaiting farmer
+    confirmation), confidence, is_emergency, needs_confirmation.
     """
     messages: List[Dict[str, Any]] = list(history or [])
     messages.append({"role": "user", "content": message})
@@ -189,6 +219,7 @@ async def decide_and_act(
         pinned_animal=pinned_animal or "none yet",
         farm_context=farm_context or "(no context provided)",
         vet_mode="ACTIVE" if vet_mode else "off",
+        locale_instruction=_LOCALE_INSTRUCTIONS.get(locale, _LOCALE_INSTRUCTIONS["uz"]),
     )
 
     tools_called: List[str] = []
@@ -287,7 +318,7 @@ async def decide_and_act(
     if final is None:
         # Hit MAX_TOOL_ITERATIONS without a finish_response call.
         final = {
-            "summary": "I need a moment to finish looking into this — could you repeat that?",
+            "summary": _TIMEOUT_FALLBACK.get(locale, _TIMEOUT_FALLBACK["uz"]),
             "confidence": 0,
             "is_emergency": is_emergency,
             "needs_confirmation": False,
