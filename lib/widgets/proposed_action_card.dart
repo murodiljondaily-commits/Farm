@@ -112,7 +112,18 @@ class _ProposedActionCardState extends State<ProposedActionCard> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () => setState(() => _status = 'cancelled'),
-                    child: Text(l10n.proposedActionCancelBtn),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
+                    child: Text(
+                      l10n.proposedActionCancelBtn,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -120,9 +131,19 @@ class _ProposedActionCardState extends State<ProposedActionCard> {
                   child: ElevatedButton(
                     onPressed: _confirm,
                     style: ElevatedButton.styleFrom(
-                        backgroundColor: kMint,
-                        foregroundColor: Colors.white),
-                    child: Text(l10n.confirm),
+                      backgroundColor: kMint,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 10),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: const TextStyle(fontSize: 13),
+                    ),
+                    child: Text(
+                      l10n.confirm,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ),
               ],

@@ -275,7 +275,7 @@ class AppLocalizationsUz extends AppLocalizations {
   String get welcomeFeatureHistory => 'Emlash va kasallik tarixi';
 
   @override
-  String get welcomeFeatureSheets => 'Google Sheets sinxronizatsiya';
+  String get welcomeFeatureSheets => 'Excel hisobot yuklab olish';
 
   @override
   String get welcomeNewFarm => 'Yangi ferma ochish';
@@ -643,6 +643,10 @@ class AppLocalizationsUz extends AppLocalizations {
 
   @override
   String get farmExcelError => 'Hisobotni yuklab olishda xatolik yuz berdi';
+
+  @override
+  String get farmExcelNoViewerApp =>
+      'Fayl yuklab olindi, lekin uni ochadigan ilova topilmadi. Excel yoki jadval ilovasini o\'rnating.';
 
   @override
   String get farmLanguage => 'Til';
@@ -1926,7 +1930,7 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
   String get welcomeFeatureHistory => 'Емлаш ва касаллик тарихи';
 
   @override
-  String get welcomeFeatureSheets => 'Гоогле Шеетс синхронизатсия';
+  String get welcomeFeatureSheets => 'Excel ҳисобот юклаб олиш';
 
   @override
   String get welcomeNewFarm => 'Янги ферма очиш';
@@ -2294,6 +2298,10 @@ class AppLocalizationsUzCyrl extends AppLocalizationsUz {
 
   @override
   String get farmExcelError => 'Ҳисоботни юклаб олишда хатолик юз берди';
+
+  @override
+  String get farmExcelNoViewerApp =>
+      'Файл юклаб олинди, лекин уни очадиган илова топилмади. Excel ёки жадвал иловасини ўрнатинг.';
 
   @override
   String get farmLanguage => 'Тил';

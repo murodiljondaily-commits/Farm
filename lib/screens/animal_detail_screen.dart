@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -149,30 +150,44 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Species emoji in gradient circle
-                Container(
-                  width: 86,
-                  height: 86,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: gradient,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: gradient[0].withValues(alpha: 0.55),
-                        blurRadius: 28,
-                        offset: const Offset(0, 8),
+                // Animal photo if one was taken, else species emoji in gradient circle
+                Builder(builder: (context) {
+                  final photoFile = a.photoFileId != null && a.photoFileId!.isNotEmpty
+                      ? File(a.photoFileId!)
+                      : null;
+                  final hasPhoto = photoFile != null && photoFile.existsSync();
+                  return Container(
+                    width: 86,
+                    height: 86,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: gradient,
                       ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(speciesEmoji(a.species),
-                        style: const TextStyle(fontSize: 44)),
-                  ),
-                ),
+                      image: hasPhoto
+                          ? DecorationImage(
+                              image: FileImage(photoFile),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                      boxShadow: [
+                        BoxShadow(
+                          color: gradient[0].withValues(alpha: 0.55),
+                          blurRadius: 28,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: hasPhoto
+                        ? null
+                        : Center(
+                            child: Text(speciesEmoji(a.species),
+                                style: const TextStyle(fontSize: 44)),
+                          ),
+                  );
+                }),
                 const SizedBox(height: 14),
                 Text(
                   a.displayName,

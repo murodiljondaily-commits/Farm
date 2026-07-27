@@ -273,7 +273,7 @@ class AppLocalizationsRu extends AppLocalizations {
   String get welcomeFeatureHistory => 'История вакцинации и болезней';
 
   @override
-  String get welcomeFeatureSheets => 'Синхронизация с Google Таблицами';
+  String get welcomeFeatureSheets => 'Скачивание отчёта в Excel';
 
   @override
   String get welcomeNewFarm => 'Создать новую ферму';
@@ -638,6 +638,10 @@ class AppLocalizationsRu extends AppLocalizations {
 
   @override
   String get farmExcelError => 'Ошибка при скачивании отчёта';
+
+  @override
+  String get farmExcelNoViewerApp =>
+      'Файл загружен, но не найдено приложение для его открытия. Установите Excel или приложение для таблиц.';
 
   @override
   String get farmLanguage => 'Язык';

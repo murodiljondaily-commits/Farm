@@ -355,6 +355,8 @@ class _AnimalCardState extends State<_AnimalCard> {
                   children: [
                     Text(
                       a.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 19,
                         fontWeight: FontWeight.w700,
@@ -370,9 +372,13 @@ class _AnimalCardState extends State<_AnimalCard> {
                       if (a.breed != null) ...[
                         const Text(' · ',
                             style: TextStyle(color: kGreyLight)),
-                        Text(a.breed!,
-                            style: const TextStyle(
-                                fontSize: 15, color: kGrey)),
+                        Flexible(
+                          child: Text(a.breed!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 15, color: kGrey)),
+                        ),
                       ],
                     ]),
                   ],

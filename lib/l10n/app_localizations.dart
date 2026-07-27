@@ -606,7 +606,7 @@ abstract class AppLocalizations {
   /// No description provided for @welcomeFeatureSheets.
   ///
   /// In uz, this message translates to:
-  /// **'Google Sheets sinxronizatsiya'**
+  /// **'Excel hisobot yuklab olish'**
   String get welcomeFeatureSheets;
 
   /// No description provided for @welcomeNewFarm.
@@ -1292,6 +1292,12 @@ abstract class AppLocalizations {
   /// In uz, this message translates to:
   /// **'Hisobotni yuklab olishda xatolik yuz berdi'**
   String get farmExcelError;
+
+  /// No description provided for @farmExcelNoViewerApp.
+  ///
+  /// In uz, this message translates to:
+  /// **'Fayl yuklab olindi, lekin uni ochadigan ilova topilmadi. Excel yoki jadval ilovasini o\'rnating.'**
+  String get farmExcelNoViewerApp;
 
   /// No description provided for @farmLanguage.
   ///

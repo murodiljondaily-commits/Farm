@@ -105,7 +105,7 @@
   "welcomeFeatureAnimals": "Hayvonlarni ro'yxatga oling",
   "welcomeFeatureAi": "AI veterinar yordamchi",
   "welcomeFeatureHistory": "Emlash va kasallik tarixi",
-  "welcomeFeatureSheets": "Google Sheets sinxronizatsiya",
+  "welcomeFeatureSheets": "Excel hisobot yuklab olish",
   "welcomeNewFarm": "Yangi ferma ochish",
   "welcomeJoinFarm": "Mavjud fermaga qo'shilish",
 
@@ -254,6 +254,7 @@
   "farmLocationLabel": "Joylashuv",
   "farmExcelGenerating": "Hisobot tayyorlanmoqda...",
   "farmExcelError": "Hisobotni yuklab olishda xatolik yuz berdi",
+  "farmExcelNoViewerApp": "Fayl yuklab olindi, lekin uni ochadigan ilova topilmadi. Excel yoki jadval ilovasini o'rnating.",
   "farmLanguage": "Til",
   "farmLanguageUz": "🇺🇿 O'zbek",
   "farmLanguageUzCyrl": "🇺🇿 Ўзбек",

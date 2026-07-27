@@ -268,7 +268,19 @@ class FarmScreen extends StatelessWidget {
         final dateStr = DateTime.now().toIso8601String().substring(0, 10);
         final file = File('${dir.path}/AgriVet_${safeName}_$dateStr.xlsx');
         await file.writeAsBytes(bytes);
-        await OpenFilex.open(file.path);
+        final result = await OpenFilex.open(file.path);
+        if (result.type != ResultType.done && context.mounted) {
+          // No spreadsheet app installed, permission denied, etc. — the file
+          // itself downloaded fine, but nothing rendered it, which otherwise
+          // silently looks like "the report is empty" to the farmer.
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(
+              result.type == ResultType.noAppToOpen
+                  ? l10n.farmExcelNoViewerApp
+                  : '${l10n.farmExcelError}: ${result.message}',
+            )),
+          );
+        }
       } else {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

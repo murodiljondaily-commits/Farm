@@ -105,7 +105,7 @@
   "welcomeFeatureAnimals": "Регистрируйте животных",
   "welcomeFeatureAi": "ИИ-помощник ветеринара",
   "welcomeFeatureHistory": "История вакцинации и болезней",
-  "welcomeFeatureSheets": "Синхронизация с Google Таблицами",
+  "welcomeFeatureSheets": "Скачивание отчёта в Excel",
   "welcomeNewFarm": "Создать новую ферму",
   "welcomeJoinFarm": "Присоединиться к ферме",
 
@@ -254,6 +254,7 @@
   "farmLocationLabel": "Местоположение",
   "farmExcelGenerating": "Формируется отчёт...",
   "farmExcelError": "Ошибка при скачивании отчёта",
+  "farmExcelNoViewerApp": "Файл загружен, но не найдено приложение для его открытия. Установите Excel или приложение для таблиц.",
   "farmLanguage": "Язык",
   "farmLanguageUz": "🇺🇿 O'zbek",
   "farmLanguageUzCyrl": "🇺🇿 Ўзбек",

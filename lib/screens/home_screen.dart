@@ -583,9 +583,9 @@ class _MiniStat extends StatelessWidget {
             Expanded(
               child: Text(
                 label,
-                maxLines: 1,
+                maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: labelBold(color: labelColor),
+                style: labelBold(color: labelColor).copyWith(height: 1.15),
               ),
             ),
           ]),
