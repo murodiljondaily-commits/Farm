@@ -574,3 +574,52 @@ async def search_rag(
         results.append(p)
     results.sort(key=lambda x: x["_match_score"], reverse=True)
     return results[:5]
+
+
+# ─── Notification tokens ────────────────────────────────────────────
+
+async def register_notification_token(
+    farm_id: str, token: str, user_id: str, locale: str
+) -> None:
+    """Upsert by token (not user_id) -- a user can have multiple devices, and
+    the same physical device's token is the natural dedup key."""
+    now = datetime.now(timezone.utc).isoformat()
+    def _q():
+        (
+            get_db().collection("farms").document(farm_id)
+            .collection("notification_tokens").document(token)
+            .set({"user_id": user_id, "locale": locale, "updated_at": now}, merge=True)
+        )
+    _run(_q)
+
+
+async def get_farm_notification_tokens(farm_id: str) -> List[Dict]:
+    """Returns [{token, user_id, locale}, ...] for every device registered
+    to this farm, across every user on it."""
+    def _q():
+        docs = (
+            get_db().collection("farms").document(farm_id)
+            .collection("notification_tokens").stream()
+        )
+        out = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["token"] = doc.id
+            out.append(d)
+        return out
+    return _run(_q)
+
+
+async def get_all_farms() -> List[Dict]:
+    """Every farm doc -- used by the scheduled digest/weather jobs, which
+    need to iterate every farm rather than being called per-farm like the
+    rest of this module."""
+    def _q():
+        docs = get_db().collection("farms").stream()
+        out = []
+        for doc in docs:
+            d = doc.to_dict()
+            d["farm_id"] = doc.id
+            out.append(d)
+        return out
+    return _run(_q)

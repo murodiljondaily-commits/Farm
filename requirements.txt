@@ -12,3 +12,4 @@ pillow-heif==1.4.0
 python-dotenv==1.0.1
 anthropic==0.117.0
 openpyxl==3.1.5
+apscheduler==3.10.4

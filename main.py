@@ -10,16 +10,22 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
 import firestore_db
-from models import ChatRequest, ChatResponse, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest, UpdateCaseStatusRequest
+from models import ChatRequest, ChatResponse, SyncAnimalsRequest, CreateFarmRequest, TtsRequest, AssignCaseRequest, ConfirmActionRequest, UpdateCaseStatusRequest, RegisterTokenRequest
 from agent import run_agent
 from storage import upload_photo, analyze_photo, normalize_to_jpeg
 from tools import close_case as close_case_tool
 from tools import update_case_status as update_case_status_tool
 from excel_export import generate_farm_excel
 from context_builder import build_farm_context
+from scheduler import start_scheduler
 
 app = FastAPI(title="AgriVet AI Backend", version="1.0")
 print("=== AgriVet backend — Item3A outcome enforcement + Item4 RAG + Item5 search_rag ===")
+
+
+@app.on_event("startup")
+async def _on_startup():
+    start_scheduler()
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +63,22 @@ async def create_farm(req: CreateFarmRequest):
         return {"success": True, "farm_id": req.farm_id}
     except Exception as exc:
         print(f"[/farm POST] ERROR: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@app.post("/farm/{farm_id}/register-token")
+async def register_token(farm_id: str, req: RegisterTokenRequest):
+    """Called on sign-in and on FCM token refresh so push notifications
+    (daily digest, weather warnings) reach every device on this farm in the
+    right language. Upserted by token, so re-registering the same device is
+    just a locale/timestamp update, not a duplicate."""
+    try:
+        await firestore_db.register_notification_token(
+            farm_id, req.token, req.user_id, req.locale
+        )
+        return {"success": True}
+    except Exception as exc:
+        print(f"[/register-token] ERROR: {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
 
 

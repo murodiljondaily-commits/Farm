@@ -68,3 +68,9 @@ class AssignCaseRequest(BaseModel):
 
 class UpdateCaseStatusRequest(BaseModel):
     status: str
+
+
+class RegisterTokenRequest(BaseModel):
+    token: str
+    user_id: str
+    locale: str = "uz"
