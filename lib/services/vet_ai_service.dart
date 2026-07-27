@@ -925,6 +925,31 @@ Last vaccination: ${lastVacc != null ? '${lastVacc.vaccineName} on ${lastVacc.da
     }
   }
 
+  /// Registers (or refreshes) this device's FCM token for push notifications
+  /// (daily digest, weather warnings) -- locale is stored alongside it so the
+  /// backend composes each recipient's notification in their own language.
+  static Future<bool> registerPushToken({
+    required String farmId,
+    required String token,
+    required String userId,
+    required String locale,
+  }) async {
+    try {
+      final resp = await http
+          .post(
+            Uri.parse('$_backendUrl/farm/$farmId/register-token'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'token': token, 'user_id': userId, 'locale': locale}),
+          )
+          .timeout(const Duration(seconds: 20));
+      debugPrint('[VetAI] registerPushToken status=${resp.statusCode}');
+      return resp.statusCode == 200;
+    } catch (e) {
+      debugPrint('[VetAI] registerPushToken error: $e');
+      return false;
+    }
+  }
+
   /// Look up all farms owned by a Google account (by Firebase uid and/or email)
   /// so the owner can restore their farm after signing in on a new device.
   static Future<List<Map<String, dynamic>>> lookupFarmsByOwner({

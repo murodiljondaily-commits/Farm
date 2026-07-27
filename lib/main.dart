@@ -11,6 +11,7 @@ import 'firebase_options.dart';
 import 'theme.dart';
 import 'providers/farm_provider.dart';
 import 'providers/locale_provider.dart';
+import 'services/push_service.dart';
 import 'l10n/app_localizations.dart';
 import 'screens/google_sign_in_screen.dart';
 import 'screens/phone_auth_screen.dart';
@@ -65,6 +66,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
+  await PushService.init();
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     systemNavigationBarColor: Color(0xFF0A0806),

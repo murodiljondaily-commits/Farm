@@ -1,11 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 import '../services/db_service.dart';
 import '../services/auth_service.dart';
 import '../services/google_auth_service.dart';
 import '../services/vet_ai_service.dart';
 import '../services/firestore_live_service.dart';
+import '../services/push_service.dart';
 
 class FarmProvider extends ChangeNotifier {
   String? _farmId;
@@ -74,12 +76,35 @@ class FarmProvider extends ChangeNotifier {
         debugPrint('[FarmProvider] step 3 — DbService.getFarm($_farmId)');
         _farm = await DbService.getFarm(_farmId!);
         debugPrint('[FarmProvider] farm loaded: ${_farm?.farmName}');
+        // The Firestore farm doc is only ever written once, at initial
+        // setup (setup_screen.dart) -- if that sync failed (offline, or the
+        // backend was down) there was previously no retry, so the farm
+        // could exist locally forever while genuinely never existing in
+        // Firestore at all (confirmed: this was the case for the real farm
+        // used to test this session). save_farm() upserts (merge=True), so
+        // repeating this on every launch is a safe, self-healing backfill,
+        // not just a one-time bootstrap.
+        if (_farm != null) {
+          VetAiService.saveFarmToBackend(_farm!);
+        }
         // Opportunistic live sync: only meaningful with a real Firebase Auth
         // session (Security Rules require request.auth.uid == owner_uid).
         // Silently does nothing signed-out/offline — SQLite + notifyDirty()
         // remain the source of truth exactly as before this existed.
         if (FirebaseAuth.instance.currentUser != null) {
           FirestoreLiveService.start(_farmId!, notifyDirty);
+        }
+        if (_userId != null) {
+          // Same key/format LocaleProvider persists ('uz' / 'uz_Cyrl' / 'ru')
+          // -- read directly rather than depending on LocaleProvider being
+          // constructed first, since providers here have no ordering guarantee.
+          final prefs = await SharedPreferences.getInstance();
+          final localeStr = prefs.getString('locale_lang_code') ?? 'uz';
+          PushService.registerToken(
+            farmId: _farmId!,
+            userId: _userId!,
+            localeStr: localeStr,
+          );
         }
       } else {
         debugPrint('[FarmProvider] step 3 — skipped (no farmId)');
