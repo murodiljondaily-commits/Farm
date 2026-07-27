@@ -8,6 +8,7 @@ import '../services/db_service.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/capsule_bar.dart';
+import '../widgets/animal_avatar.dart';
 
 class WeightScreen extends StatefulWidget {
   final String? preselectedEarTag;
@@ -465,8 +466,13 @@ class _WeightTile extends StatelessWidget {
           CircleAvatar(
             radius: 20,
             backgroundColor: kMintSoft,
-            child: Text(animal != null ? speciesEmoji(animal!.species) : '🐾',
-                style: const TextStyle(fontSize: 17)),
+            child: animal != null
+                ? AnimalAvatarContent(
+                    photoFileId: animal!.photoFileId,
+                    species: animal!.species,
+                    emojiFontSize: 17,
+                  )
+                : const Text('🐾', style: TextStyle(fontSize: 17)),
           ),
           const SizedBox(width: 12),
           Expanded(

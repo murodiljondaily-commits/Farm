@@ -8,6 +8,7 @@ import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/capsule_bar.dart';
 import '../services/vet_ai_service.dart';
+import '../widgets/animal_avatar.dart';
 
 class HealthScreen extends StatefulWidget {
   final String? preselectedEarTag;
@@ -632,9 +633,13 @@ class _CaseCardState extends State<_CaseCard> {
               CircleAvatar(
                 radius: 24,
                 backgroundColor: kMintSoft,
-                child: Text(
-                    animal != null ? speciesEmoji(animal.species) : '🐾',
-                    style: const TextStyle(fontSize: 22)),
+                child: animal != null
+                    ? AnimalAvatarContent(
+                        photoFileId: animal.photoFileId,
+                        species: animal.species,
+                        emojiFontSize: 22,
+                      )
+                    : const Text('🐾', style: TextStyle(fontSize: 22)),
               ),
               const SizedBox(width: 12),
               Expanded(

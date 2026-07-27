@@ -8,6 +8,7 @@ import '../services/db_service.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
 import '../widgets/agri_nav_bar.dart';
+import '../widgets/animal_avatar.dart';
 
 class ArchiveScreen extends StatefulWidget {
   const ArchiveScreen({super.key});
@@ -261,9 +262,12 @@ class _ArchiveCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  child: Center(
-                      child: Text(speciesEmoji(a.species),
-                          style: const TextStyle(fontSize: 22))),
+                  child: AnimalAvatarContent(
+                    photoFileId: a.photoFileId,
+                    species: a.species,
+                    emojiFontSize: 22,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

@@ -7,6 +7,7 @@ import '../providers/farm_provider.dart';
 import '../services/db_service.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/animal_avatar.dart';
 
 class AnimalsScreen extends StatefulWidget {
   final String? species;
@@ -341,11 +342,11 @@ class _AnimalCardState extends State<_AnimalCard> {
                     ),
                   ],
                 ),
-                child: Center(
-                  child: Text(
-                    speciesEmoji(a.species),
-                    style: const TextStyle(fontSize: 26),
-                  ),
+                child: AnimalAvatarContent(
+                  photoFileId: a.photoFileId,
+                  species: a.species,
+                  emojiFontSize: 26,
+                  borderRadius: BorderRadius.circular(16),
                 ),
               ),
               // Info

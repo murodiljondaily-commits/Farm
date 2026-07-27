@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +8,7 @@ import '../providers/farm_provider.dart';
 import '../services/db_service.dart';
 import '../models/models.dart';
 import '../l10n/app_localizations.dart';
+import '../widgets/animal_avatar.dart';
 
 class AnimalDetailScreen extends StatefulWidget {
   final String earTag;
@@ -150,13 +150,12 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 const SizedBox(height: 40),
-                // Animal photo if one was taken, else species emoji in gradient circle
-                Builder(builder: (context) {
-                  final photoFile = a.photoFileId != null && a.photoFileId!.isNotEmpty
-                      ? File(a.photoFileId!)
-                      : null;
-                  final hasPhoto = photoFile != null && photoFile.existsSync();
-                  return Container(
+                // Animal photo if one was taken (tap to expand, Telegram-style),
+                // else species emoji in gradient circle
+                ExpandablePhoto(
+                  photoFileId: a.photoFileId,
+                  heroTag: 'animal_photo_${a.earTag}',
+                  child: Container(
                     width: 86,
                     height: 86,
                     decoration: BoxDecoration(
@@ -166,12 +165,6 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                         end: Alignment.bottomRight,
                         colors: gradient,
                       ),
-                      image: hasPhoto
-                          ? DecorationImage(
-                              image: FileImage(photoFile),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
                       boxShadow: [
                         BoxShadow(
                           color: gradient[0].withValues(alpha: 0.55),
@@ -180,14 +173,13 @@ class _AnimalDetailScreenState extends State<AnimalDetailScreen>
                         ),
                       ],
                     ),
-                    child: hasPhoto
-                        ? null
-                        : Center(
-                            child: Text(speciesEmoji(a.species),
-                                style: const TextStyle(fontSize: 44)),
-                          ),
-                  );
-                }),
+                    child: AnimalAvatarContent(
+                      photoFileId: a.photoFileId,
+                      species: a.species,
+                      emojiFontSize: 44,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 14),
                 Text(
                   a.displayName,
